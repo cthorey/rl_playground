@@ -1,0 +1,49 @@
+FROM consol/ubuntu-xfce-vnc
+
+USER 0
+
+# set the workdir
+WORKDIR /tmp
+
+# set environment
+ENV TERM xterm
+ENV LANG C.UTF-8
+ENV LC_ALL C.UTF-8
+
+# install python and co
+RUN apt-get update
+RUN apt-get install -y python3-pip python3-dev
+RUN pip3 install --upgrade pip
+RUN pip3 install --upgrade --user tensorflow
+RUN apt-get install -y git
+RUN apt-get update
+RUN apt-get install -y cmake zlib1g-dev xvfb libav-tools xorg-dev libsdl2-dev swig
+
+RUN git clone https://github.com/openai/gym.git
+RUN pip install -e './gym[all]'
+RUN pip install pandas seaborn
+RUN pip install tqdm
+
+RUN pip3 install jupyter
+RUN pip3 install ipython ipykernel
+COPY ./run_jupyter.sh /run_jupyter.sh
+COPY ./jupyter_notebook_config.py /headless/.jupyter/
+
+RUN pip3 install torch torchvision
+
+#open ai baseline
+WORKDIR /opt
+RUN apt-get update &&\
+    apt-get install -y libopenmpi-dev
+
+RUN git clone https://github.com/openai/baselines.git && \
+    cd baselines && \
+    pip install -e .
+
+ENV VNC_PW=rl
+ENV VNC_RESOLUTION=1440x900
+ENV PYTHONPATH=$PYTHONPATH:/workdir
+WORKDIR /workdir
+
+ENTRYPOINT ["/dockerstartup/vnc_startup.sh"]
+CMD ["--wait"]
