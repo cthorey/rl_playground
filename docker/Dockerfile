@@ -40,6 +40,9 @@ RUN git clone https://github.com/openai/baselines.git && \
     cd baselines && \
     pip install -e .
 
+# other package
+RUN pip install sklearn
+
 ENV VNC_PW=rl
 ENV VNC_RESOLUTION=1440x900
 ENV PYTHONPATH=$PYTHONPATH:/workdir
