@@ -5,7 +5,8 @@ import random
 from torchvision import transforms
 from PIL import Image
 import numpy as np
-
+import seaborn as sns
+import pandas as pd
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'done'))
 
@@ -97,3 +98,9 @@ class DeepQNetwork(torch.nn.Module):
         X = X.view(-1, 32 * 9 * 9)
         X = self.fc(X)
         return self.head(X)
+
+
+def plot_reward(eps):
+    df = pd.DataFrame(eps)
+    df['total_steps'] = df.steps.cumsum()
+    df.plot(x='total_steps', y='reward')

@@ -5,7 +5,10 @@ import torch
 import math
 import random
 from box import Box
-
+import os
+ROOT_DIR = os.environ['ROOT_DIR']
+CHECKPOINT_NAME = 'checkpoint.pth.tar'
+CHECKPOINT_PATH = os.path.join(ROOT_DIR, 'dqn', CHECKPOINT_NAME)
 DEVICE = 'cpu'
 BATCH_SIZE = 64
 GAMMA = 0.999
@@ -14,6 +17,7 @@ EPS_END = 0.05
 EPS_DECAY = 200
 TARGET_UPDATE = 10
 CAPACITY = 10000
+NACTIONS = 4
 
 
 class DQNAgent(object):
@@ -38,15 +42,24 @@ class DQNAgent(object):
         self.num_episodes = 0
         self.episode_i = 0
 
+    def save_checkpoint(self):
+        state = {
+            'steps_done': self.steps_done,
+            'episodes': self.episode_i,
+            'state_dict': self.policy_dqn.state_dict(),
+            'optimizer': self.optimizer.state_dict(),
+        }
+        torch.save(state, CHECKPOINT_PATH)
+
     def update_target_dqn(self):
         self.target_dqn.load_state_dict(self.policy_dqn.state_dict())
         self.target_dqn.eval()
 
-    def select_action(self, state, epsilon, nactions):
+    def select_action(self, state):
         eps_threshold = EPS_END + (EPS_START - EPS_END) * \
                         math.exp(-1. * self.steps_done / EPS_DECAY)
         if np.random.rand() < eps_threshold:
-            action = random.choice(range(nactions))
+            action = random.choice(range(NACTIONS))
             action = torch.tensor([action]).view(-1, 1)
         else:
             with torch.no_grad():
@@ -62,7 +75,7 @@ class DQNAgent(object):
         nstate_batch = torch.cat(batch.next_state)  #Bx4x64x64
         action_batch = torch.cat(batch.action)  #Bx1
         reward_batch = torch.cat(batch.reward)  #Bx1
-        done_batch = 1.0 - torch.cat(batch.done)
+        done_batch = 1.0 - torch.cat(batch.done)  #Bx1
 
         # Q(s,a)
         qsa = self.policy_dqn.forward(state_batch)  # BX4
@@ -93,13 +106,12 @@ class DQNAgent(object):
         episode = Box(steps=0, reward=0)
         while True:
             env.render()
-            action = self.select_action(state, epsilon=0.1, nactions=4)
+            action = self.select_action(state)
             nstate, reward, done, info = env.step(action)
 
             # add to episode stats
             episode.steps += 1
             episode.reward += reward
-            last_reward = reward
 
             # convert to tensor and set nstate to None if end ep
             reward = torch.tensor([reward], device=DEVICE)
@@ -119,19 +131,32 @@ class DQNAgent(object):
             print(
                 "\rStep {} @ Episode {}/{} ({})".format(
                     episode.steps, self.episode_i + 1, self.num_episodes,
-                    last_reward),
+                    episode.reward),
                 end="")
             if done:
                 break
             state = nstate
+            self.steps_done += 1
 
         return episode
 
-    def train(self, env, num_episodes=50):
+    def train(self, env, num_episodes=50, resume=False):
         self.steps_done = 0
+        if resume:
+            checkpoint = Box(torch.load(CHECKPOINT_PATH))
+            self.steps_done = checkpoint.steps_done
+            self.episode_i = checkpoint.episodes
+            self.policy_dqn.load_state_dict(checkpoint.state_dict)
+            self.update_target_dqn()
+            self.optimizer.load_state_dict(checkpoint.optimizer)
+            print("=> loaded checkpoint (steps_done {}/ episode {})".format(
+                checkpoint.steps_done, checkpoint.episodes))
+
+        num_episodes = num_episodes + self.episode_i + 1
         self.num_episodes = num_episodes
         episodes = []
         for i in range(num_episodes):
-            self.episode_i = i
+            self.episode_i += 1
             episodes.append(self.train_one_episode(env))
+            self.save_checkpoint()
         return episodes
