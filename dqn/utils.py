@@ -1,9 +1,49 @@
 from collections import namedtuple
 from torch import nn
+import torch
 import random
 from torchvision import transforms
+from PIL import Image
+import numpy as np
+
 Transition = namedtuple('Transition',
-                        ('state', 'action', 'next_state', 'reward'))
+                        ('state', 'action', 'next_state', 'reward', 'done'))
+
+
+class StateTransformer(object):
+    """
+    The input of our Qvalue is the concatenation of the last four frames.
+    """
+
+    def __init__(self):
+        self.reset()
+        self.transforms = transforms.Compose([
+            transforms.Resize(size=(84, 84)),
+            transforms.Grayscale(),
+            transforms.ToTensor()
+        ])
+
+    def reset(self):
+        self.state = None
+
+    def preprocessing(self, state):
+        """
+        Input: 4X210X160X3
+        Output: 4X84X84
+        """
+        out = self.transforms(Image.fromarray(state))
+        out /= 255.
+        return out
+
+    def transform(self, state):
+        state = self.preprocessing(state)
+        if self.state is None:
+            nstate = np.vstack([state for _ in range(4)])
+        else:
+            nstate = np.vstack([self.state[1:], state])
+        nstate = torch.from_numpy(nstate)
+        self.state = nstate
+        return nstate.unsqueeze(0)
 
 
 class ReplayMemory(object):
@@ -12,10 +52,16 @@ class ReplayMemory(object):
         self.memory = []
         self.idx = 0
 
-    def push(self, *args):
+    def push(self, state, action, reward, next_state, done):
         if len(self.memory) < self.capacity:
             self.memory.append(None)
-        transition = Transition(*args)
+        # compute phi(state)
+        transition = Transition(
+            state=state,
+            action=action,
+            reward=reward,
+            next_state=next_state,
+            done=done)
         self.memory[self.idx] = transition
         self.idx = (self.idx + 1) % self.capacity
 
@@ -26,29 +72,28 @@ class ReplayMemory(object):
         return [random.choice(self.memory) for _ in range(batch_size)]
 
 
-class QValueFunction(nn.Module):
-    """
-    Architectures
-    Input - 84X84X4
-
-    """
-
+class DeepQNetwork(torch.nn.Module):
     def __init__(self):
-        super(QValueFunction, self).__init__()
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=5, stride=4)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.nl1 = nn.Relu()
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=5, stride=2)
-        self.bn2 = nn.BatchNorm2d(32)
-        self.nl2 = nn.Relu()
-        self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
-        self.bn3 = nn.BatchNorm2d(32)
-        self.nl3 = nn.Relu()
-        self.head = nn.Linear(448, 2)
-
-    def preprocessing(self, X):
-        X = X - X.mean(axis=-1, keepdims=True)
-        return X.transpose(0, 3, 1, 2)
+        super(DeepQNetwork, self).__init__()
+        self.conv1 = torch.nn.Conv2d(4, 16, kernel_size=8, stride=4)
+        self.bn1 = torch.nn.BatchNorm2d(16)
+        self.nl1 = torch.nn.ReLU()
+        self.conv2 = torch.nn.Conv2d(16, 32, kernel_size=4, stride=2)
+        self.bn2 = torch.nn.BatchNorm2d(32)
+        self.nl2 = torch.nn.ReLU()
+        self.fc = torch.nn.Linear(32 * 9 * 9, 256)
+        self.head = torch.nn.Linear(256, 4)
 
     def forward(self, X):
-        return self.conv1(X)
+        """
+        Architecture of DQN
+        """
+        X = self.conv1(X)
+        X = self.bn1(X)
+        X = self.nl1(X)
+        X = self.conv2(X)
+        X = self.bn2(X)
+        X = self.nl2(X)
+        X = X.view(-1, 32 * 9 * 9)
+        X = self.fc(X)
+        return self.head(X)
