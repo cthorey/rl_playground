@@ -2,10 +2,10 @@ from collections import namedtuple
 from torch import nn
 import torch
 import random
+import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 import numpy as np
-import seaborn as sns
 import pandas as pd
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'done'))
@@ -32,6 +32,7 @@ class StateTransformer(object):
         Input: 4X210X160X3
         Output: 4X84X84
         """
+        state = state[210 - 170:200]
         out = self.transforms(Image.fromarray(state))
         out /= 255.
         return out
@@ -76,26 +77,20 @@ class ReplayMemory(object):
 class DeepQNetwork(torch.nn.Module):
     def __init__(self):
         super(DeepQNetwork, self).__init__()
-        self.conv1 = torch.nn.Conv2d(4, 16, kernel_size=8, stride=4)
-        self.bn1 = torch.nn.BatchNorm2d(16)
-        self.nl1 = torch.nn.ReLU()
-        self.conv2 = torch.nn.Conv2d(16, 32, kernel_size=4, stride=2)
-        self.bn2 = torch.nn.BatchNorm2d(32)
-        self.nl2 = torch.nn.ReLU()
-        self.fc = torch.nn.Linear(32 * 9 * 9, 256)
+        self.conv1 = torch.nn.Conv2d(4, 32, kernel_size=8, stride=4)
+        self.bn1 = torch.nn.BatchNorm2d(32)
+        self.conv2 = torch.nn.Conv2d(32, 64, kernel_size=4, stride=2)
+        self.bn2 = torch.nn.BatchNorm2d(64)
+        self.fc = torch.nn.Linear(5184, 256)
         self.head = torch.nn.Linear(256, 4)
 
     def forward(self, X):
         """
         Architecture of DQN
         """
-        X = self.conv1(X)
-        X = self.bn1(X)
-        X = self.nl1(X)
-        X = self.conv2(X)
-        X = self.bn2(X)
-        X = self.nl2(X)
-        X = X.view(-1, 32 * 9 * 9)
+        X = F.relu(self.bn1(self.conv1(X)))
+        X = F.relu(self.bn2(self.conv2(X)))
+        X = X.view(-1, 5184)
         X = self.fc(X)
         return self.head(X)
 

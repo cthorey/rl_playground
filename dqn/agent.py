@@ -2,14 +2,22 @@ from dqn import utils
 from collections import namedtuple
 import numpy as np
 import torch
+import torch.nn.functional as F
 import math
 import random
 from box import Box
+import fire
+from tqdm import tqdm
+import json
+import gym
+from tensorboardX import SummaryWriter
+import json
 import os
+
 ROOT_DIR = os.environ['ROOT_DIR']
 CHECKPOINT_NAME = 'checkpoint.pth.tar'
 CHECKPOINT_PATH = os.path.join(ROOT_DIR, 'dqn', CHECKPOINT_NAME)
-DEVICE = 'cpu'
+HISTORY_PATH = os.path.join(ROOT_DIR, 'history.json')
 BATCH_SIZE = 64
 GAMMA = 0.999
 EPS_START = 0.9
@@ -18,6 +26,7 @@ EPS_DECAY = 200
 TARGET_UPDATE = 10
 CAPACITY = 10000
 NACTIONS = 4
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class DQNAgent(object):
@@ -36,6 +45,9 @@ class DQNAgent(object):
 
         #optimizer
         self.optimizer = torch.optim.RMSprop(self.policy_dqn.parameters())
+
+        # writer
+        self.writer = SummaryWriter()
 
         # global step
         self.steps_done = 0
@@ -60,10 +72,10 @@ class DQNAgent(object):
                         math.exp(-1. * self.steps_done / EPS_DECAY)
         if np.random.rand() < eps_threshold:
             action = random.choice(range(NACTIONS))
-            action = torch.tensor([action]).view(-1, 1)
+            action = torch.tensor([action], device=DEVICE).view(-1, 1)
         else:
             with torch.no_grad():
-                action = np.argmax(self.policy_dqn.forward(state)).view(-1, 1)
+                action = np.argmax(self.policy_dqn(state)).view(-1, 1)
         return action
 
     def update_parameters(self):
@@ -78,16 +90,17 @@ class DQNAgent(object):
         done_batch = 1.0 - torch.cat(batch.done)  #Bx1
 
         # Q(s,a)
-        qsa = self.policy_dqn.forward(state_batch)  # BX4
+        qsa = self.policy_dqn(state_batch)  # BX4
         qsa = qsa.gather(1, action_batch)  #Bx1
         # TD target r + Q(s',argmax(Q(s',a))
-        qnsa = self.target_dqn.forward(state_batch)
-        qnsa = qnsa.max(1)[0]
+        qnsa = self.target_dqn(nstate_batch)
+        qnsa = qnsa.max(1)[0].detach()
         target = reward_batch + GAMMA * qnsa * done_batch.float()
-        target = target.detach().view(-1, 1)
+        target = target.view(-1, 1)
 
         # compute loss
-        loss = torch.nn.functional.smooth_l1_loss(qsa, target)
+        loss = F.smooth_l1_loss(qsa, target)
+        self.writer.add_scalar('data/loss', loss, self.steps_done)
 
         # clean up grads
         self.optimizer.zero_grad()
@@ -108,6 +121,7 @@ class DQNAgent(object):
             env.render()
             action = self.select_action(state)
             nstate, reward, done, info = env.step(action)
+            self.writer.add_scalar('data/reward', reward, self.steps_done)
 
             # add to episode stats
             episode.steps += 1
@@ -124,15 +138,6 @@ class DQNAgent(object):
             # compute the loss
             self.update_parameters()
 
-            # update target dqn from time to time
-            if self.steps_done % TARGET_UPDATE == 0:
-                self.update_target_dqn()
-
-            print(
-                "\rStep {} @ Episode {}/{} ({})".format(
-                    episode.steps, self.episode_i + 1, self.num_episodes,
-                    episode.reward),
-                end="")
             if done:
                 break
             state = nstate
@@ -149,14 +154,34 @@ class DQNAgent(object):
             self.policy_dqn.load_state_dict(checkpoint.state_dict)
             self.update_target_dqn()
             self.optimizer.load_state_dict(checkpoint.optimizer)
+            episodes = json.load(open(HISTORY_PATH, 'r'))
             print("=> loaded checkpoint (steps_done {}/ episode {})".format(
                 checkpoint.steps_done, checkpoint.episodes))
 
         num_episodes = num_episodes + self.episode_i + 1
         self.num_episodes = num_episodes
         episodes = []
-        for i in range(num_episodes):
+        for i in tqdm(range(num_episodes)):
             self.episode_i += 1
-            episodes.append(self.train_one_episode(env))
+            summary = self.train_one_episode(env)
+            episodes.append(summary)
             self.save_checkpoint()
+            json.dump(episodes, open(HISTORY_PATH, 'w+'))
+            self.writer.add_scalars('data/episodes', summary, self.steps_done)
+            # update target dqn from time to time
+            if self.episode_i % TARGET_UPDATE == 0:
+                self.update_target_dqn()
+            self.writer.export_scalars_to_json("./all_scalars.json")
+        self.writer.close()
+
         return episodes
+
+
+def make_agent(num_episodes, resume=False):
+    agent = DQNAgent()
+    env = gym.envs.make("Breakout-v0")
+    agent.train(env, num_episodes=num_episodes, resume=resume)
+
+
+if __name__ == '__main__':
+    fire.Fire(make_agent)

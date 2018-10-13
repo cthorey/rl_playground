@@ -1,3 +1,6 @@
 *__pycache*
 *.pyc
 *.ipynb_checkpoints*
+*checkpoint.pth.tar*
+*.json
+*/runs/*

@@ -41,7 +41,7 @@ RUN git clone https://github.com/openai/baselines.git && \
     pip install -e .
 
 # other package
-RUN pip install sklearn
+RUN pip install sklearn python-box fire tqdm tensorboardX
 
 ENV VNC_PW=rl
 ENV VNC_RESOLUTION=1440x900
