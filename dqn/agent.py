@@ -167,7 +167,7 @@ class DQNAgent(object):
             episodes.append(summary)
             self.save_checkpoint()
             json.dump(episodes, open(HISTORY_PATH, 'w+'))
-            self.writer.add_scalars('data/episodes', summary, self.steps_done)
+            self.writer.add_scalars('data/episodes', summary, self.episode_i)
             # update target dqn from time to time
             if self.episode_i % TARGET_UPDATE == 0:
                 self.update_target_dqn()
