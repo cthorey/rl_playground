@@ -44,7 +44,7 @@ class StateTransformer(object):
             nstate = np.vstack([state for _ in range(4)])
         else:
             nstate = np.vstack([self.state[1:], state])
-        nstate = torch.from_numpy(nstate).to(DEVICE)
+        nstate = torch.from_numpy(nstate).to('cpu')
         self.state = nstate
         return nstate.unsqueeze(0)
 
