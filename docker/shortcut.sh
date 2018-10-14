@@ -22,3 +22,15 @@ krl() {
            -it \
            rl bash
 }
+
+tensorboard() {
+    docker run  \
+           -e ROOT_DIR='/workdir' \
+           -v $HOME/workdir/rl_playground:/workdir \
+           -p "6006:6006" \
+           --rm \
+           -it \
+           rl tensorboard --logdir=$1
+}
+
+

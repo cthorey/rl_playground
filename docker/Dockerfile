@@ -14,7 +14,7 @@ ENV LC_ALL C.UTF-8
 RUN apt-get update
 RUN apt-get install -y python3-pip python3-dev
 RUN pip3 install --upgrade pip
-RUN pip3 install --upgrade --user tensorflow
+RUN pip3 install --upgrade tensorflow
 RUN apt-get install -y git
 RUN apt-get update
 RUN apt-get install -y cmake zlib1g-dev xvfb libav-tools xorg-dev libsdl2-dev swig
