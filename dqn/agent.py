@@ -32,9 +32,9 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class DQNAgent(object):
     def __init__(self):
         # our dqn agent that we want to optimize
-        self.policy_dqn = utils.DeepQNetwork()
+        self.policy_dqn = utils.DeepQNetwork().to(DEVICE)
         # the frozen target used to compute td target
-        self.target_dqn = utils.DeepQNetwork()
+        self.target_dqn = utils.DeepQNetwork().to(DEVICE)
         # init with policy dqn params
         self.update_target_dqn()
 
@@ -72,10 +72,10 @@ class DQNAgent(object):
                         math.exp(-1. * self.steps_done / EPS_DECAY)
         if np.random.rand() < eps_threshold:
             action = random.choice(range(NACTIONS))
-            action = torch.tensor([action], device=DEVICE).view(-1, 1)
         else:
             with torch.no_grad():
-                action = np.argmax(self.policy_dqn(state)).view(-1, 1)
+                action = np.argmax(self.policy_dqn(state))
+        action = torch.tensor(action, device=DEVICE).view(1, -1)
         return action
 
     def update_parameters(self):
@@ -118,7 +118,6 @@ class DQNAgent(object):
         state = self.stransformer.transform(state)
         episode = Box(steps=0, reward=0)
         while True:
-            env.render()
             action = self.select_action(state)
             nstate, reward, done, info = env.step(action)
             self.writer.add_scalar('data/reward', reward, self.steps_done)
