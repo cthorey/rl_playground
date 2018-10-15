@@ -18,13 +18,15 @@ ROOT_DIR = os.environ['ROOT_DIR']
 CHECKPOINT_NAME = 'checkpoint.pth.tar'
 CHECKPOINT_PATH = os.path.join(ROOT_DIR, 'dqn', CHECKPOINT_NAME)
 HISTORY_PATH = os.path.join(ROOT_DIR, 'history.json')
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 GAMMA = 0.999
-EPS_START = 0.9
+EPS_START = 1.0
 EPS_END = 0.05
-EPS_DECAY = 200
+EPS_DECAY = 100000
 TARGET_UPDATE = 10
-CAPACITY = 10000
+CAPACITY = 500000
+MIN_MEMORY_SIZE = 10000
+
 NACTIONS = 4
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -32,9 +34,9 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class DQNAgent(object):
     def __init__(self):
         # our dqn agent that we want to optimize
-        self.policy_dqn = utils.DeepQNetwork()
+        self.policy_dqn = utils.DeepQNetwork().to(DEVICE)
         # the frozen target used to compute td target
-        self.target_dqn = utils.DeepQNetwork()
+        self.target_dqn = utils.DeepQNetwork().to(DEVICE)
         # init with policy dqn params
         self.update_target_dqn()
 
@@ -44,7 +46,8 @@ class DQNAgent(object):
         self.stransformer = utils.StateTransformer()
 
         #optimizer
-        self.optimizer = torch.optim.RMSprop(self.policy_dqn.parameters())
+        self.optimizer = torch.optim.RMSprop(
+            self.policy_dqn.parameters(), lr=0.00025)
 
         # writer
         self.writer = SummaryWriter()
@@ -70,36 +73,38 @@ class DQNAgent(object):
     def select_action(self, state):
         eps_threshold = EPS_END + (EPS_START - EPS_END) * \
                         math.exp(-1. * self.steps_done / EPS_DECAY)
+        self.writer.add_scalar('data/epsilon', eps_threshold, self.steps_done)
         if np.random.rand() < eps_threshold:
             action = random.choice(range(NACTIONS))
-            action = torch.tensor([action], device=DEVICE).view(-1, 1)
         else:
             with torch.no_grad():
-                action = np.argmax(self.policy_dqn(state)).view(-1, 1)
+                action = np.argmax(self.policy_dqn(state))
+        action = torch.tensor(action, device='cpu').view(1, -1)
         return action
 
     def update_parameters(self):
-        if len(self.memory) < BATCH_SIZE:
+        if len(self.memory) < MIN_MEMORY_SIZE:
             return
         batch = utils.Transition(*zip(*self.memory.sample(BATCH_SIZE)))
         # we need to compute the targets
-        state_batch = torch.cat(batch.state)  #Bx4x64x64
-        nstate_batch = torch.cat(batch.next_state)  #Bx4x64x64
-        action_batch = torch.cat(batch.action)  #Bx1
-        reward_batch = torch.cat(batch.reward)  #Bx1
-        done_batch = 1.0 - torch.cat(batch.done)  #Bx1
+        state_batch = torch.cat(batch.state).to(DEVICE)  #Bx4x64x64
+        nstate_batch = torch.cat(batch.next_state).to(DEVICE)  #Bx4x64x64
+        action_batch = torch.cat(batch.action).to(DEVICE)  #Bx1
+        reward_batch = torch.cat(batch.reward).to(DEVICE)  #Bx1
+        done_batch = 1.0 - torch.cat(batch.done).to(DEVICE)  #Bx1
 
         # Q(s,a)
-        qsa = self.policy_dqn(state_batch)  # BX4
-        qsa = qsa.gather(1, action_batch)  #Bx1
+        action_values = self.policy_dqn(state_batch)  # BX4
+        action_values = action_values.gather(1, action_batch)  #Bx1
+
         # TD target r + Q(s',argmax(Q(s',a))
-        qnsa = self.target_dqn(nstate_batch)
-        qnsa = qnsa.max(1)[0].detach()
-        target = reward_batch + GAMMA * qnsa * done_batch.float()
-        target = target.view(-1, 1)
+        naction_values = self.target_dqn(nstate_batch)
+        naction_values = naction_values.max(1)[0].detach()
+        td_target = reward_batch + GAMMA * naction_values * done_batch.float()
+        td_target = td_target.view(-1, 1)
 
         # compute loss
-        loss = F.smooth_l1_loss(qsa, target)
+        loss = F.smooth_l1_loss(action_values, td_target)
         self.writer.add_scalar('data/loss', loss, self.steps_done)
 
         # clean up grads
@@ -118,8 +123,7 @@ class DQNAgent(object):
         state = self.stransformer.transform(state)
         episode = Box(steps=0, reward=0)
         while True:
-            env.render()
-            action = self.select_action(state)
+            action = self.select_action(state.to(DEVICE))
             nstate, reward, done, info = env.step(action)
             self.writer.add_scalar('data/reward', reward, self.steps_done)
 
@@ -128,8 +132,8 @@ class DQNAgent(object):
             episode.reward += reward
 
             # convert to tensor and set nstate to None if end ep
-            reward = torch.tensor([reward], device=DEVICE)
-            done = torch.tensor([done], device=DEVICE)
+            reward = torch.tensor([reward], device='cpu')
+            done = torch.tensor([done], device='cpu')
             nstate = self.stransformer.transform(nstate)
 
             # push to memory
@@ -167,7 +171,10 @@ class DQNAgent(object):
             episodes.append(summary)
             self.save_checkpoint()
             json.dump(episodes, open(HISTORY_PATH, 'w+'))
-            self.writer.add_scalars('data/episodes', summary, self.episode_i)
+            self.writer.add_scalar('data/esteps', summary.steps,
+                                   self.episode_i)
+            self.writer.add_scalar('data/ereward', summary.reward,
+                                   self.episode_i)
             # update target dqn from time to time
             if self.episode_i % TARGET_UPDATE == 0:
                 self.update_target_dqn()

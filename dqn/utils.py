@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'done'))
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class StateTransformer(object):
@@ -43,7 +44,7 @@ class StateTransformer(object):
             nstate = np.vstack([state for _ in range(4)])
         else:
             nstate = np.vstack([self.state[1:], state])
-        nstate = torch.from_numpy(nstate)
+        nstate = torch.from_numpy(nstate).to('cpu')
         self.state = nstate
         return nstate.unsqueeze(0)
 
