@@ -79,20 +79,19 @@ class DeepQNetwork(torch.nn.Module):
     def __init__(self):
         super(DeepQNetwork, self).__init__()
         self.conv1 = torch.nn.Conv2d(4, 32, kernel_size=8, stride=4)
-        self.bn1 = torch.nn.BatchNorm2d(32)
         self.conv2 = torch.nn.Conv2d(32, 64, kernel_size=4, stride=2)
-        self.bn2 = torch.nn.BatchNorm2d(64)
-        self.fc = torch.nn.Linear(5184, 256)
-        self.head = torch.nn.Linear(256, 4)
+        self.conv3 = torch.nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.fc = torch.nn.Linear(7 * 7 * 64, 512)
+        self.head = torch.nn.Linear(512, 4)
 
     def forward(self, X):
         """
         Architecture of DQN
         """
-        X = F.relu(self.bn1(self.conv1(X)))
-        X = F.relu(self.bn2(self.conv2(X)))
-        X = X.view(-1, 5184)
-        X = self.fc(X)
+        X = F.relu(self.conv1(X))
+        X = F.relu(self.conv2(X))
+        X = F.relu(self.conv3(X))
+        X = F.relu(self.fc(X.view(X.size(0), -1)))
         return self.head(X)
 
 

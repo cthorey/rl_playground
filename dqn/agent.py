@@ -18,12 +18,12 @@ ROOT_DIR = os.environ['ROOT_DIR']
 CHECKPOINT_NAME = 'checkpoint.pth.tar'
 CHECKPOINT_PATH = os.path.join(ROOT_DIR, 'dqn', CHECKPOINT_NAME)
 HISTORY_PATH = os.path.join(ROOT_DIR, 'history.json')
-BATCH_SIZE = 128
+BATCH_SIZE = 32
 GAMMA = 0.999
 EPS_START = 1.0
 EPS_END = 0.05
 EPS_DECAY = 100000
-TARGET_UPDATE = 10
+TARGET_UPDATE = 10000
 CAPACITY = 500000
 MIN_MEMORY_SIZE = 10000
 
@@ -77,8 +77,7 @@ class DQNAgent(object):
         if np.random.rand() < eps_threshold:
             action = random.choice(range(NACTIONS))
         else:
-            with torch.no_grad():
-                action = np.argmax(self.policy_dqn(state))
+            action = self.policy_dqn(state).max(1)[1].view(1, 1)
         action = torch.tensor(action, device='cpu').view(1, -1)
         return action
 
@@ -86,6 +85,7 @@ class DQNAgent(object):
         if len(self.memory) < MIN_MEMORY_SIZE:
             return
         batch = utils.Transition(*zip(*self.memory.sample(BATCH_SIZE)))
+
         # we need to compute the targets
         state_batch = torch.cat(batch.state).to(DEVICE)  #Bx4x64x64
         nstate_batch = torch.cat(batch.next_state).to(DEVICE)  #Bx4x64x64
@@ -125,7 +125,6 @@ class DQNAgent(object):
         while True:
             action = self.select_action(state.to(DEVICE))
             nstate, reward, done, info = env.step(action)
-            self.writer.add_scalar('data/reward', reward, self.steps_done)
 
             # add to episode stats
             episode.steps += 1
@@ -141,11 +140,15 @@ class DQNAgent(object):
 
             # compute the loss
             self.update_parameters()
+            self.steps_done += 1
+
+            # update target netwrook
+            if self.steps_done % TARGET_UPDATE == 0:
+                self.update_target_dqn()
 
             if done:
                 break
             state = nstate
-            self.steps_done += 1
 
         return episode
 
@@ -171,15 +174,17 @@ class DQNAgent(object):
             episodes.append(summary)
             self.save_checkpoint()
             json.dump(episodes, open(HISTORY_PATH, 'w+'))
-            self.writer.add_scalar('data/esteps', summary.steps,
+            self.writer.add_scalar('data/nb_steps', summary.steps,
                                    self.episode_i)
-            self.writer.add_scalar('data/ereward', summary.reward,
+            self.writer.add_scalar('data/reward', summary.reward,
+                                   self.episode_i)
+            self.writer.add_scalar('data/mean_reward',
+                                   summary.reward / float(summary.steps),
                                    self.episode_i)
             # update target dqn from time to time
-            if self.episode_i % TARGET_UPDATE == 0:
-                self.update_target_dqn()
+
             self.writer.export_scalars_to_json("./all_scalars.json")
-        self.writer.close()
+        # self.writer.close()
 
         return episodes
 
