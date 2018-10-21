@@ -93,24 +93,30 @@ class PersonalTrainer(object):
         #Bx4x64x64
         nstate_batch = torch.cat(batch.next_state).float() / 255.
         nstate_batch = nstate_batch.to(DEVICE)  #Bx4x64x64
-        action_batch = torch.cat(batch.action).to(DEVICE)  #Bx1
-        reward_batch = torch.cat(batch.reward).to(DEVICE)  #Bx1
-        done_batch = 1.0 - torch.cat(batch.done).to(DEVICE)  #Bx1
+        action_batch = torch.cat(batch.action).to(DEVICE).view(-1, 1)  #Bx1
+        reward_batch = torch.cat(batch.reward).to(DEVICE).view(-1, 1)  #Bx1
+        done_batch = 1.0 - torch.cat(batch.done).to(DEVICE).view(-1, 1)  #Bx1
 
         # Q(s,a)
         action_values = self.agent.policy_dqn(state_batch)  # BX4
         action_values = action_values.gather(1, action_batch)  #Bx1
 
         # TD target r + Q(s',argmax(Q(s',a))
-        naction_values = self.target_dqn(nstate_batch).detach()
-        naction_values = naction_values.max(1)[0]
+        naction_values = self.target_dqn(nstate_batch).detach()  #Bx4
+        naction_values_tmp = naction_values
+        if self.agent.double_dqn:
+            # use the policy instead of the target
+            naction_values_tmp = self.agent.policy_dqn(nstate_batch).detach()
+        idx_best_actions = naction_values_tmp.max(1)[-1].view(-1, 1)  #Bx1
+        naction_values = naction_values.gather(1, idx_best_actions)  #Bx1
         td_target = reward_batch + self.agent.gamma * naction_values * done_batch.float(
         )
         td_target = td_target.view(-1, 1)
 
         # compute loss
         loss = F.smooth_l1_loss(action_values, td_target)
-        self.writer.add_scalar('data/loss', loss, self.steps_done)
+        if hasattr(self, 'writer'):
+            self.writer.add_scalar('data/loss', loss, self.steps_done)
 
         # clean up grads
         self.optimizer.zero_grad()
@@ -130,7 +136,9 @@ class PersonalTrainer(object):
         life = 5
         while True:
             epsilon = self.epsilon_decay(self.steps_done)
-            self.writer.add_scalar('data/epsilon', epsilon, self.steps_done)
+            if hasattr(self, 'writer'):
+                self.writer.add_scalar('data/epsilon', epsilon,
+                                       self.steps_done)
             action = self.agent.select_action(state.to(DEVICE), epsilon)
             nstate, reward, done, info = env.step(action)
 
@@ -179,11 +187,10 @@ class PersonalTrainer(object):
                 self.current_best_reward = summary.reward
             rewards.append(summary.reward)
 
-            self.writer.add_scalar('data/nb_steps', self.steps_done,
+            self.writer.add_scalar('nb_steps', self.steps_done,
                                    self.episodes_done)
-            self.writer.add_scalar('data/reward', summary.reward,
-                                   self.steps_done)
-            self.writer.add_scalar('data/100_reward', np.mean(rewards[-100:]),
+            self.writer.add_scalar('reward', summary.reward, self.steps_done)
+            self.writer.add_scalar('100_reward', np.mean(rewards[-100:]),
                                    self.steps_done)
             self.writer.add_scalar('episodes_done', self.episodes_done,
                                    self.steps_done)

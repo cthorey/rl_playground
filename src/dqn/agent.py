@@ -72,6 +72,9 @@ class Agent(object):
         # general
         self.batch_size = 32
         self.gamma = 0.999
+        self.double_dqn = False
+
+        # epsilon decay
         self.eps_start = 1.0
         self.eps_end = 0.1
         self.eps_decay = 250000
@@ -112,7 +115,7 @@ class Agent(object):
         else:
             state = state.float() / 255.0
             state = state.to(DEVICE)
-            action = self.policy_dqn(state).max(1)[1].view(1, 1)
+            action = self.policy_dqn(state).detach().max(1)[1].view(1, 1)
         action = torch.tensor(action, device='cpu').view(1, -1)
         return action
 

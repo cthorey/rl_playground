@@ -90,9 +90,3 @@ class DeepQNetwork(torch.nn.Module):
         X = F.relu(self.conv3(X))
         X = F.relu(self.fc(X.view(X.size(0), -1)))
         return self.head(X)
-
-
-def plot_reward(eps):
-    df = pd.DataFrame(eps)
-    df['total_steps'] = df.steps.cumsum()
-    df.plot(x='total_steps', y='reward')
