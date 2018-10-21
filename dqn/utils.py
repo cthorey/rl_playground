@@ -19,11 +19,9 @@ class StateTransformer(object):
 
     def __init__(self):
         self.reset()
-        self.transforms = transforms.Compose([
-            transforms.Resize(size=(84, 84)),
-            transforms.Grayscale(),
-            transforms.ToTensor()
-        ])
+        self.transforms = transforms.Compose(
+            [transforms.Resize(size=(84, 84)),
+             transforms.Grayscale()])
 
     def reset(self):
         self.state = None
@@ -35,8 +33,7 @@ class StateTransformer(object):
         """
         state = state[210 - 170:200]
         out = self.transforms(Image.fromarray(state))
-        out /= 255.
-        return out
+        return np.array(out)[np.newaxis, :]
 
     def transform(self, state):
         state = self.preprocessing(state)
@@ -44,8 +41,8 @@ class StateTransformer(object):
             nstate = np.vstack([state for _ in range(4)])
         else:
             nstate = np.vstack([self.state[1:], state])
-        nstate = torch.from_numpy(nstate).to('cpu')
         self.state = nstate
+        nstate = torch.from_numpy(nstate).to('cpu')
         return nstate.unsqueeze(0)
 
 
