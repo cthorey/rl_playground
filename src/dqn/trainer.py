@@ -1,18 +1,20 @@
-from src.dqn import utils
+import json
+import math
+import os
+import random
+import sys
 from collections import namedtuple
+
+import gym
 import numpy as np
+
+import fire
 import torch
 import torch.nn.functional as F
-import math
-import random
 from box import Box
-import fire
-from tqdm import tqdm
-import json
-import gym
+from src.dqn import utils
 from tensorboardX import SummaryWriter
-import json
-import os
+from tqdm import tqdm
 
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,7 +35,7 @@ class PersonalTrainer(object):
         self.optimizer = getattr(torch.optim, self.agent.optimizer)(
             self.agent.policy_dqn.parameters(), **self.agent.optimizer_config)
         if self.agent.checkpoint is not None:
-            self.optimizer.load_state_dict(self.agent.checkpoints.optimizer)
+            self.optimizer.load_state_dict(self.agent.checkpoint.optimizer)
 
     def epsilon_decay(self, num_steps):
         return  self.agent.eps_end + (self.agent.eps_start - self.agent.eps_end) * \
@@ -180,7 +182,7 @@ class PersonalTrainer(object):
             log_dir=os.path.join(self.agent_folder, self.expname))
         self.current_best_reward = 0
         rewards = []
-        for i in tqdm(range(num_episodes)):
+        for i in tqdm(range(num_episodes), file=sys.stderr):
             summary = self.train_one_episode(env)
             if summary.reward >= self.current_best_reward:
                 self.save('best')

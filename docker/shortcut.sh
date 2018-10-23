@@ -23,6 +23,17 @@ rlgpu() {
            rlgpu /run_jupyter.sh
 }
 
+rlgpu_run() {
+    docker run  \
+           --runtime=nvidia \
+           -e NVIDIA_VISIBLE_DEVICES=${1:-0} \
+           -e ROOT_DIR='/workdir' \
+           -v $HOME/workdir/rl_playground:/workdir \
+           --rm \
+           -d \
+           rlgpu $2
+}
+
 krl() {
     docker run  \
            -e ROOT_DIR='/workdir' \

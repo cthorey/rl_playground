@@ -8,6 +8,7 @@ import re
 import sys
 import time
 from os.path import join as ojoin
+import sys
 
 import numpy as np
 import pandas as pd
@@ -53,7 +54,7 @@ class RLExperiment(object):
         """
         exps = os.listdir(self.trainer.agent_folder)
         return list(
-            filter(lambda sid: re.match('.*_experiment.json', sid), exps))
+            filter(lambda sid: re.match('{}.*_experiment.json'.format(self.exp_prefix), sid), exps))
 
     def initial_setup(self, exp, expname, overwrite):
         """
@@ -76,7 +77,7 @@ class RLExperiment(object):
         """
         exp.update({
             key: val
-            for key, val in self.trainer.__dict__.items()
+            for key, val in self.trainer.agent.__dict__.items()
             if type(val) in [tuple, list, str, int, float]
         })
         json_string = exp
@@ -84,6 +85,7 @@ class RLExperiment(object):
                                   '{}_experiment.json'.format(exp['expname']))
         self.pprint('Dumping the experiment infos to {}'.format(model_path))
         json.dump(json_string, open(model_path, 'w+'))
+        return json_string
 
     def continue_experiment(self, expname, nepisodes):
         self.trainer.agent.load_experiment(expname, prefix='current')
@@ -120,5 +122,5 @@ class RLExperiment(object):
         self.trainer.train(num_episodes=nepisodes)
 
     def pprint(self, m):
-        print('*' * 100)
+        print('*' * 100, file=sys.stderr)
         print(m)
