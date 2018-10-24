@@ -21,10 +21,9 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Agent(object):
-    def __init__(self, agent_name='dqn', expname=None, render=True):
+    def __init__(self, agent_name='dqn', expname=None):
         # agent_name
         self.agent_name = agent_name
-        self.render = render
 
         # our dqn agent that we want to optimize
         self.policy_dqn = utils.DeepQNetwork().to(DEVICE)
@@ -127,13 +126,14 @@ class Agent(object):
         action = torch.tensor(action, device='cpu').view(1, -1)
         return action
 
-    def play_one_episode(self):
+    def play_one_episode(self, render=False):
         env = gym.envs.make(self.env_name)
         state = env.reset()
         state = self.stransformer.transform(state)
         stats = Box(steps=0, reward=0)
         while 1:
-            env.render()
+            if render:
+                env.render()
             action = self.select_action(state.to(DEVICE), epsilon=0)
             nstate, reward, done, info = env.step(action)
             stats.steps += 1
