@@ -134,7 +134,7 @@ class Agent(object):
         while 1:
             if render:
                 env.render()
-            action = self.select_action(state.to(DEVICE), epsilon=0)
+            action = self.select_action(state.to(DEVICE), epsilon=0.0)
             nstate, reward, done, info = env.step(action)
             stats.steps += 1
             stats.reward += reward
