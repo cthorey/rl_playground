@@ -94,8 +94,8 @@ class RLExperiment(object):
         self.trainer.train(num_episodes=nepisodes)
 
     def fit_experiment(self,
-                       exp,
                        nepisodes,
+                       exp=None,
                        expname=None,
                        overwrite=False,
                        overfit=False):
@@ -109,6 +109,8 @@ class RLExperiment(object):
         """
 
         # initial setup
+        if exp is None:
+            exp = Box()
         exp = self.initial_setup(exp, expname, overwrite)
 
         # setup the model

@@ -1,18 +1,12 @@
-import json
 import math
 import os
-import random
 import sys
-from collections import namedtuple
 
 import gym
 import numpy as np
 
-import fire
 import torch
-import torch.nn.functional as F
 from box import Box
-from src.dqn import utils
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
@@ -27,6 +21,10 @@ class BasePersonalTrainer(object):
         #optimizer
         self.optimizer = getattr(torch.optim, self.agent.optimizer)(
             self.agent.policy_dqn.parameters(), **self.agent.optimizer_config)
+
+        # scheduler
+        self.scheduler = None
+
         if self.agent.checkpoint is not None:
             self.optimizer.load_state_dict(self.agent.checkpoint.optimizer)
 

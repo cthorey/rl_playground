@@ -1,20 +1,13 @@
 import json
-import math
 import os
 import random
 import sys
-from collections import namedtuple
 
 import gym
 import numpy as np
 
-import fire
 import torch
-import torch.nn.functional as F
 from box import Box
-from src.dqn import utils
-from tensorboardX import SummaryWriter
-from tqdm import tqdm
 
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,7 +27,6 @@ class BaseAgent(object):
         self.setup_foldertree()
         self.setup_default_experiment()
         # reload previous
-        self.best_reward = 0
         if expname is not None:
             self.load_experiment(expname)
 
@@ -87,6 +79,12 @@ class BaseAgent(object):
         self.optimizer = 'Adam'
         self.optimizer_config = Box({'lr': 1e-5})
 
+        # epsilon decay
+        self.eps_start = 1.0
+        self.eps_end = 0.1
+        self.eps_decay = 250000
+        self.target_update = 10000
+
         # environmental
         self.env_name = 'BreakoutDeterministic-v4'
         self.nactions = 4
@@ -110,14 +108,7 @@ class BaseAgent(object):
             os.makedirs(self.agent_folder)
 
     def select_action(self, state, epsilon):
-        if np.random.rand() < epsilon:
-            action = random.choice(range(self.nactions))
-        else:
-            state = state.float() / 255.0
-            state = state.to(DEVICE)
-            action = self.policy_dqn(state).detach().max(1)[1].view(1, 1)
-        action = torch.tensor(action, device='cpu').view(1, -1)
-        return action
+        raise NotImplementedError
 
     def play_one_episode(self, render=False):
         env = gym.envs.make(self.env_name)
