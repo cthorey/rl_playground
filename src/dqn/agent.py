@@ -21,9 +21,10 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Agent(object):
-    def __init__(self, agent_name='dqn', expname=None):
+    def __init__(self, agent_name='dqn', expname=None, render=True):
         # agent_name
         self.agent_name = agent_name
+        self.render = render
 
         # our dqn agent that we want to optimize
         self.policy_dqn = utils.DeepQNetwork().to(DEVICE)
@@ -34,6 +35,7 @@ class Agent(object):
         self.setup_foldertree()
         self.setup_default_experiment()
         # reload previous
+        self.best_reward = 0
         if expname is not None:
             self.load_experiment(expname)
 
@@ -63,13 +65,15 @@ class Agent(object):
         if not os.path.isfile(checkpoint_path):
             raise ValueError(
                 'Cannot find the checkoint in {}'.format(checkpoint_path))
-        self.checkpoint = Box(torch.load(checkpoint_path))
+        self.checkpoint = Box(torch.load(checkpoint_path, map_location=DEVICE))
         self.steps_done = self.checkpoint.steps_done
+        self.best_reward = self.checkpoint.get("best_reward", 0)
         self.episodes_done = self.checkpoint.episodes_done
         self.policy_dqn.load_state_dict(self.checkpoint.state_dict)
         print(
-            "=> loaded checkpoint (steps_done {}/ episode {})".format(
-                self.checkpoint.steps_done, self.checkpoint.episodes_done),
+            "=> loaded {} checkpoint (steps_done {}/ episode {})".format(
+                prefix, self.checkpoint.steps_done,
+                self.checkpoint.episodes_done),
             file=sys.stderr)
 
     def setup_default_experiment(self):
@@ -129,6 +133,7 @@ class Agent(object):
         state = self.stransformer.transform(state)
         stats = Box(steps=0, reward=0)
         while 1:
+            env.render()
             action = self.select_action(state.to(DEVICE), epsilon=0)
             nstate, reward, done, info = env.step(action)
             stats.steps += 1

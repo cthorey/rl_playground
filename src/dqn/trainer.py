@@ -49,6 +49,10 @@ class PersonalTrainer(object):
         return self.agent.agent_name
 
     @property
+    def best_reward(self):
+        return self.agent.best_reward
+
+    @property
     def agent_folder(self):
         return self.agent.agent_folder
 
@@ -70,6 +74,7 @@ class PersonalTrainer(object):
                                            self.expname, prefix))
         state = {
             'agent_name': self.agent_name,
+            'best_reward': self.best_reward,
             'expname': self.expname,
             'steps_done': self.steps_done,
             'episodes_done': self.episodes_done,
@@ -180,13 +185,12 @@ class PersonalTrainer(object):
         env = gym.envs.make(self.agent.env_name)
         self.writer = SummaryWriter(
             log_dir=os.path.join(self.agent_folder, self.expname))
-        self.current_best_reward = 0
         rewards = []
         for i in tqdm(range(num_episodes), file=sys.stderr):
             summary = self.train_one_episode(env)
-            if summary.reward >= self.current_best_reward:
+            if summary.reward >= self.best_reward:
                 self.save('best')
-                self.current_best_reward = summary.reward
+                self.agent.best_reward = summary.reward
             rewards.append(summary.reward)
 
             self.writer.add_scalar('nb_steps', self.steps_done,
