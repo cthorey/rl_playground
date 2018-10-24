@@ -134,7 +134,6 @@ class BaseAgent(object):
             self.generate_giff(frames)
         return stats
 
-    @staticmethod
     def get_screen(self, env, size=(420, 320)):
         screen = env.render(mode='rgb_array')
         img = Image.fromarray(screen).resize(size)
