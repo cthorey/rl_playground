@@ -19,6 +19,13 @@ class StateTransformer(object):
     """
 
     def __init__(self):
+        stransformer_path = os.path.join(ROOT_DIR, 'models', 'linear_fa',
+                                         'stransformer.pickle')
+        if not os.path.isfile(stransformer_path):
+            self.gen_transformer(stransformer_path)
+        self.pipeline = pickle.load(open(stransformer_path, 'rb'))
+
+    def gen_transformer(self, stransformer_path):
         scaler = sklearn.preprocessing.StandardScaler()
         featurizer = sklearn.pipeline.FeatureUnion(
             [("rbf1", RBFSampler(gamma=5.0, n_components=100)),
@@ -28,26 +35,16 @@ class StateTransformer(object):
                                                       RBFSampler(
                                                           gamma=0.5,
                                                           n_components=100))])
-        self.transforms = Pipeline([('scaler', scaler), ('feat', featurizer)])
-        self.transforms.fit(self.get_random_observation())
+        pipeline = Pipeline([('scaler', scaler), ('feat', featurizer)])
 
-    def get_random_observation(self):
-        path = os.path.join(ROOT_DIR, 'models', 'linear_fa',
-                            'observation.pickle')
-        if not os.path.isfile(path):
-            self.gen_random_observation()
-        return pickle.load(open(path, 'rb'))
-
-    def gen_random_observation(self):
         env = gym.envs.make(ENV_NAME)
         obs = np.array([env.observation_space.sample() for x in range(10000)])
-        path = os.path.join(ROOT_DIR, 'models', 'linear_fa',
-                            'observation.pickle')
-        pickle.dump(obs, open(path, 'wb+'))
+        pipeline.fit(obs)
+        pickle.dump(pipeline, open(stransformer_path, 'wb+'))
 
     def transform(self, state):
         state = np.expand_dims(state, 0)
-        state = self.transforms.transform(state)
+        state = self.pipeline.transform(state)
         state = torch.from_numpy(state).to('cpu').float()
         return state
 
@@ -59,12 +56,10 @@ class LinearApproximator(torch.nn.Module):
 
     def __init__(self):
         super(LinearApproximator, self).__init__()
-        self.f1 = torch.nn.Linear(2, 400)
         self.head = torch.nn.Linear(400, 3)
 
     def forward(self, X):
         """
         Architecture of DQN
         """
-        out = self.f1(X)
-        return self.head(out)
+        return self.head(X)
