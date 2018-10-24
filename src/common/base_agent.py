@@ -8,7 +8,8 @@ import numpy as np
 
 import torch
 from box import Box
-
+from PIL import Image
+import imageio
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -68,9 +69,9 @@ class BaseAgent(object):
         self.episodes_done = self.checkpoint.episodes_done
         self.policy_dqn.load_state_dict(self.checkpoint.state_dict)
         print(
-            "=> loaded {} checkpoint (steps_done {}/ episode {})".format(
-                prefix, self.checkpoint.steps_done,
-                self.checkpoint.episodes_done),
+            "=> loaded {} checkpoint (steps_done {}/ episode {} / reward {})".
+            format(prefix, self.checkpoint.steps_done,
+                   self.checkpoint.episodes_done, self.checkpoint.best_reward),
             file=sys.stderr)
 
     def setup_default_experiment(self):
@@ -110,18 +111,37 @@ class BaseAgent(object):
     def select_action(self, state, epsilon):
         raise NotImplementedError
 
-    def play_one_episode(self, render=False):
+    def play_one_episode(self, render=False, create_gif=False):
         env = gym.envs.make(self.env_name)
+        frames = []
         state = env.reset()
         state = self.stransformer.transform(state)
         stats = Box(steps=0, reward=0)
         while 1:
             if render:
                 env.render()
+            if create_gif:
+                frames.append(self.get_screen(env))
             action = self.select_action(state.to(DEVICE), epsilon=0.0)
             nstate, reward, done, info = env.step(action)
+            nstate = self.stransformer.transform(nstate)
             stats.steps += 1
             stats.reward += reward
             if done:
                 break
+            state = nstate
+        if create_gif:
+            self.generate_giff(frames)
         return stats
+
+    @staticmethod
+    def get_screen(self, env, size=(420, 320)):
+        screen = env.render(mode='rgb_array')
+        img = Image.fromarray(screen).resize(size)
+        return np.array(img)
+
+    def generate_giff(self, frames):
+        gifname = '{}_{}.gif'.format(self.expname, self.best_reward)
+        fpath = os.path.join(self.agent_folder, gifname)
+        frames = np.stack(frames)
+        imageio.mimsave(fpath, frames, duration=1 / 30)

@@ -13,7 +13,7 @@ class Agent(BaseAgent):
         return LinearApproximator().to(DEVICE)
 
     def get_state_transformer(self):
-        return StateTransformer(ENV_NAME)
+        return StateTransformer()
 
     def select_action(self, state, epsilon):
         if np.random.rand() < epsilon:
