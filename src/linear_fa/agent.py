@@ -20,7 +20,7 @@ class Agent(BaseAgent):
             action = [random.choice(range(self.nactions))]
         else:
             state = state.to(DEVICE)
-            action = self.policy_dqn(state).detach().max(1)[1]
+            action = self.policy(state).detach().max(1)[1]
         action = np.array(action)
         return action[0]
 

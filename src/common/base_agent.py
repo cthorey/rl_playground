@@ -15,12 +15,12 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class BaseAgent(object):
-    def __init__(self, agent_name='dqn', expname=None):
+    def __init__(self, agent_name, expname=None):
         # agent_name
         self.agent_name = agent_name
 
         # our dqn agent that we want to optimize
-        self.policy_dqn = self.get_policy()
+        self.policy = self.get_policy()
         # state transformers -- Phi in the paper
         self.stransformer = self.get_state_transformer()
 
@@ -67,7 +67,7 @@ class BaseAgent(object):
         self.steps_done = self.checkpoint.steps_done
         self.best_reward = self.checkpoint.get("best_reward", 0)
         self.episodes_done = self.checkpoint.episodes_done
-        self.policy_dqn.load_state_dict(self.checkpoint.state_dict)
+        self.policy.load_state_dict(self.checkpoint.state_dict)
         print(
             "=> loaded {} checkpoint (steps_done {}/ episode {} / reward {})".
             format(prefix, self.steps_done, self.episodes_done,
@@ -75,6 +75,10 @@ class BaseAgent(object):
             file=sys.stderr)
 
     def setup_default_experiment(self):
+        self._setup_default_experiment()
+        raise NotImplementedError
+
+    def _setup_default_experiment(self):
         # training
         self.update_freq = 4
         self.optimizer = 'Adam'
@@ -86,11 +90,8 @@ class BaseAgent(object):
         self.eps_decay = 250000
         self.target_update = 10000
 
-        # environmental
-        self.env_name = 'BreakoutDeterministic-v4'
-        self.nactions = 4
-
         # Global step
+        self.gamma = 0.999
         self.steps_done = 0
         self.num_episodes = 0
         self.episodes_done = 0
@@ -99,7 +100,6 @@ class BaseAgent(object):
         # chekpoints
         self.gif_size = (420, 320)
         self.checkpoint = None
-        raise NotImplementedError
 
     def setup_foldertree(self):
         """
@@ -141,7 +141,8 @@ class BaseAgent(object):
         return np.array(img).astype('uint8')
 
     def generate_giff(self, frames):
-        gifname = '{}_{}.gif'.format(self.expname, self.best_reward)
+        expname = self.expname if hasattr(self, 'expname') else 'default'
+        gifname = '{}_{}.gif'.format(expname, self.best_reward)
         fpath = os.path.join(self.agent_folder, gifname)
         frames = np.stack(frames)
         imageio.mimsave(fpath, frames, duration=1 / 30)

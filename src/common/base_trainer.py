@@ -20,7 +20,7 @@ class BasePersonalTrainer(object):
 
         #optimizer
         self.optimizer = getattr(torch.optim, self.agent.optimizer)(
-            self.agent.policy_dqn.parameters(), **self.agent.optimizer_config)
+            self.agent.policy.parameters(), **self.agent.optimizer_config)
 
         # scheduler
         self.scheduler = None
@@ -69,7 +69,7 @@ class BasePersonalTrainer(object):
             'expname': self.expname,
             'steps_done': self.steps_done,
             'episodes_done': self.episodes_done,
-            'state_dict': self.agent.policy_dqn.state_dict(),
+            'state_dict': self.agent.policy.state_dict(),
             'optimizer': self.optimizer.state_dict(),
         }
         torch.save(state, checkpoint_path)

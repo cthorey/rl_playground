@@ -25,12 +25,12 @@ class PersonalTrainer(BasePersonalTrainer):
             self.agent.steps_done += 1
 
             # predict Q(s,a)
-            action_values = self.agent.policy_dqn(state)
+            action_values = self.agent.policy(state)
             action_values = action_values[0, action]
 
             # Compute the td target r + max(Q(s(t+1),a) over a
             nstate = self.agent.stransformer.transform(nstate)
-            naction_values = self.agent.policy_dqn(nstate).detach().max()
+            naction_values = self.agent.policy(nstate).detach().max()
             td_target = reward + self.agent.gamma * naction_values * (
                 1.0 - done)
 
