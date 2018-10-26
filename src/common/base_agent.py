@@ -70,8 +70,8 @@ class BaseAgent(object):
         self.policy_dqn.load_state_dict(self.checkpoint.state_dict)
         print(
             "=> loaded {} checkpoint (steps_done {}/ episode {} / reward {})".
-            format(prefix, self.checkpoint.steps_done,
-                   self.checkpoint.episodes_done, self.checkpoint.best_reward),
+            format(prefix, self.steps_done, self.episodes_done,
+                   self.best_reward),
             file=sys.stderr)
 
     def setup_default_experiment(self):
@@ -97,6 +97,7 @@ class BaseAgent(object):
         self.best_reward = 0
 
         # chekpoints
+        self.gif_size = (420, 320)
         self.checkpoint = None
         raise NotImplementedError
 
@@ -134,10 +135,10 @@ class BaseAgent(object):
             self.generate_giff(frames)
         return stats
 
-    def get_screen(self, env, size=(420, 320)):
+    def get_screen(self, env):
         screen = env.render(mode='rgb_array')
-        img = Image.fromarray(screen).resize(size)
-        return np.array(img)
+        img = Image.fromarray(screen).resize(self.gif_size)
+        return np.array(img).astype('uint8')
 
     def generate_giff(self, frames):
         gifname = '{}_{}.gif'.format(self.expname, self.best_reward)
