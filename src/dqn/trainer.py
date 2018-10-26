@@ -1,20 +1,10 @@
-import json
-import math
 import os
-import random
-import sys
-from collections import namedtuple
 
-import gym
-import numpy as np
 from src.common.base_trainer import BasePersonalTrainer
-import fire
 import torch
 import torch.nn.functional as F
 from box import Box
 from src.dqn import utils
-from tensorboardX import SummaryWriter
-from tqdm import tqdm
 
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

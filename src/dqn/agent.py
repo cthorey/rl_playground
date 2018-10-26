@@ -7,10 +7,8 @@ import numpy as np
 import torch
 from box import Box
 from src.dqn import utils
-import gym
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-import time
 
 
 class Agent(BaseAgent):

@@ -1,12 +1,10 @@
 from collections import namedtuple
-from torch import nn
 import torch
 import random
 import torch.nn.functional as F
 from torchvision import transforms
 from PIL import Image
 import numpy as np
-import pandas as pd
 Transition = namedtuple('Transition',
                         ('state', 'action', 'next_state', 'reward', 'done'))
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
