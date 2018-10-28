@@ -11,11 +11,32 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class PersonalTrainer(BasePersonalTrainer):
+    def update_agent(self, data):
+        """
+        Perform one step of gradient ascent.
+        """
+        rewards = np.array([d[-1] for d in data])
+        returns = torch.Tensor(
+            compute_discount_reward(rewards, self.agent.gamma))
+        targets = torch.Tensor(np.array([d[1] for d in data])).long()
+        states = torch.cat([d[0] for d in data])
+        logits = self.agent.policy(states)
+        cross_entropy = F.cross_entropy(logits, targets)
+        wcross_entropy = cross_entropy * returns
+        loss = wcross_entropy.sum()
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
     def train_one_episode(self, env):
+        """
+        Train on episode
+        """
         state = env.reset()
         state = self.agent.stransformer.transform(state)
         episode = Box(steps=0, reward=0)
         data = []
+        # play one episode
         while 1:
             action = self.agent.select_action(state)
             # env magic
@@ -30,22 +51,6 @@ class PersonalTrainer(BasePersonalTrainer):
                 break
             state = nstate
 
-        # Compile the data into Gt and one hot action to compute the log
-        rewards = np.array([d[-1] for d in data])
-        returns = compute_discount_reward(rewards, self.agent.gamma)
-        returns = torch.Tensor(returns)
-        targets = torch.Tensor(np.array([d[1] for d in data])).long()
-        states = torch.cat([d[0] for d in data])
-        probs = self.agent.policy(states)
-        negative_likelihoods = F.cross_entropy(probs, targets)
-        weighted_negative_likelihoods = negative_likelihoods * returns
-
-        loss = -weighted_negative_likelihoods.sum()
-
-        # clean up grads
-        self.optimizer.zero_grad()
-        # compute gradients
-        loss.backward()
-
-        self.optimizer.step()
+        # gradient ascent step
+        self.update_agent(data)
         return episode

@@ -42,4 +42,4 @@ class PolicyNetwork(torch.nn.Module):
     def forward(self, X):
         X = F.relu(self.f1(X))
         X = F.relu(self.f2(X))
-        return F.softmax(self.logits(X), dim=-1)
+        return self.logits(X)
