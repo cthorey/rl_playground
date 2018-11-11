@@ -14,6 +14,7 @@ class PersonalTrainer(BasePersonalTrainer):
     def update_agent(self, data):
         """
         Perform one step of gradient ascent.
+        Use the Returns Gt directly. MC way.
         """
         rewards = np.array([d[-1] for d in data])
         returns = torch.Tensor(
