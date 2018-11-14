@@ -1,100 +1,88 @@
 import os
-from multiprocessing import Pool
 import numpy as np
-from box import Box
 import torch
 from src.common.base_trainer import BasePersonalTrainer
-from src.a2c.utils import compute_discount_reward_with_done
+from src.a2c.utils import Rollout
 import torch.nn.functional as F
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-import gym
 import torch.nn.functional as F
-from baselines.run import make_vec_env, get_env_type
+from tqdm import tqdm
+from tensorboardX import SummaryWriter
 
 
 class PersonalTrainer(BasePersonalTrainer):
-    def parse_rollout(self, rollout):
-        states = torch.from_numpy(np.stack(
-            [roll[0] for roll in rollout])).to(DEVICE).float().permute(
-                1, 0, 2)
-        actions = torch.from_numpy(np.stack(
-            [roll[1] for roll in rollout])).to(DEVICE).float().permute(1, 0)
-        nstates = torch.from_numpy(np.stack(
-            [roll[2] for roll in rollout])).to(DEVICE).float().permute(
-                1, 0, 2)
-        rewards = torch.from_numpy(np.stack(
-            [roll[3] for roll in rollout])).to(DEVICE).float().permute(1, 0)
-        done = torch.from_numpy(np.stack(
-            [roll[4] * 1.0 for roll in rollout])).to(DEVICE).float().permute(
-                1, 0)
-        values = torch.from_numpy(np.stack(
-            [roll[5] for roll in rollout])).to(DEVICE).float().permute(
-                1, 0, 2).squeeze(-1)
-        return states, actions, nstates, rewards, done, values
+    def __init__(self, agent):
+        super(PersonalTrainer, self).__init__(agent=agent)
+        self.rollout = Rollout(agent=agent)
+        self.batch_size = self.rollout.nenv * self.agent.nsteps
 
-    def compute_returns(self, rewards, dones, values):
-        # If epsiodes are note done, use V(s+1) as guess for G(s+1)
-        returns = []
-        for reward, done, value in zip(rewards, dones, values):
-            reward = reward.tolist()
-            done = done.tolist()
-            value = value[-1].tolist()
-            if done[-1] == 0:
-                ret = compute_discount_reward_with_done(
-                    reward + [value], done + [1], gamma=self.agent.gamma)[:-1]
-            else:
-                ret = compute_discount_reward_with_done(
-                    reward, done, gamma=self.agent.gamma)
-            returns.append(ret)
-        return torch.from_numpy(np.stack(returns)).float()
+    @property
+    def cumulative_reward(self):
+        return self.rollout.cumulative_reward
 
-    def update_agent(self, rollout):
+    def get_tensor(self, name):
+        tensor = torch.from_numpy(getattr(self.rollout, name)).to(DEVICE)
+        tensor = tensor.reshape(self.batch_size, -1)
+        return tensor
+
+    def update_agent(self):
         """
         Perform one step of gradient ascent.
         Use the Returns Gt directly. MC way.
         """
-        states, actions, nstates, rewards, dones, values = self.parse_rollout(
-            rollout)
-        returns = self.compute_returns(rewards, dones, values).view(-1, 1)
-        logits, values = self.agent.policy(
-            states.reshape(-1, states.shape[-1]))
-        advantages = returns.reshape(-1, 1) - values.reshape(-1, 1)
-        cross_entropy = F.cross_entropy(logits, actions.reshape(-1).long())
+        states = self.get_tensor('states').float()
+        actions = self.get_tensor('actions').long().squeeze(-1)
+        advantages = self.get_tensor('advantages').float()
+        returns = self.get_tensor('returns').float()
+
+        logits, values = self.agent.policy(states)
+        cross_entropy = F.cross_entropy(logits, actions)
         wcross_entropy = cross_entropy * advantages
         # policy loss
         policy_loss = wcross_entropy.sum()
         # value loss
-        value_loss = F.smooth_l1_loss(values, returns)
+        value_loss = F.mse_loss(values, returns).sum()
         # loss
-        loss = value_loss + policy_loss
+        loss = policy_loss + self.agent.wloss.value * value_loss
+        if self.steps_done % 1000 == 0:
+            self.writer.add_scalar('policy_loss', policy_loss, self.steps_done)
+            self.writer.add_scalar('value_loss', value_loss, self.steps_done)
+            self.writer.add_scalar('total_loss', loss, self.steps_done)
 
         # additional loss to encourage exploration
         self.optimizer.zero_grad()
         loss.backward()
 
         # clip the gradient
-        for params in self.agent.policy.parameters():
-            params.grad.data.clamp_(-1, 1)
+        torch.nn.utils.clip_grad_norm_(self.agent.policy.parameters(),
+                                       self.agent.max_grad_norm)
+
         self.optimizer.step()
 
-    def rollout(self, env, states):
-        data = []
-        for i in range(self.agent.nsteps):
-            actions, values = self.agent.select_action(states)
-            nstates, rewards, done, _ = env.step(actions)
-            nstates = self.agent.stransformer.transform(nstates)
-            data.append([states, actions, nstates, rewards, done, values])
-            states = nstates
-        return data, states
+    def train(self, num_episodes=50):
+        self.writer = SummaryWriter(
+            log_dir=os.path.join(self.agent_folder, self.expname))
+        self.rollout.reset()
+        rewards = []
+        for i in tqdm(range(num_episodes)):
+            self.rollout.run()
+            self.update_agent()
+            if max(self.cumulative_reward) >= self.best_reward:
+                self.save('best')
+                self.agent.best_reward = max(self.cumulative_reward)
+            if self.steps_done % 1000 == 0:
+                self.writer.add_scalar('explaine_variance',
+                                       self.rollout.explained_variance,
+                                       self.steps_done)
+                self.writer.add_scalar('reward', self.cumulative_reward[-1],
+                                       self.steps_done)
+                self.writer.add_scalar('100_reward',
+                                       np.mean(self.cumulative_reward[-100:]),
+                                       self.steps_done)
+            history_path = os.path.join(self.agent.agent_folder,
+                                        'history.json'.format(self.expname))
+            self.writer.export_scalars_to_json(history_path)
+            self.save('current')
 
-    def train(self, total_steps=10, nenv=2):
-        env_type, env_id = get_env_type('CartPole-v0')
-        env = make_vec_env(
-            env_id, env_type, nenv, self.agent.seed, reward_scale=1)
-        states = env.reset()
-        states = self.agent.stransformer.transform(states)
-        for i in range(total_steps):
-            rollout, states = self.rollout(env, states)
-            return rollout, states
-            update_agent(rollout)
+        self.writer.close()

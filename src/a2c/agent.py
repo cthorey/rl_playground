@@ -17,10 +17,13 @@ class Agent(BaseAgent):
         self._setup_default_experiment()
         self.env_name = 'CartPole-v0'
         self.nactions = 2
-        self.optimizer = 'Adam'
-        self.optimizer_config = Box({'lr': 1e-3})
+        self.optimizer = 'RMSprop'
+        self.optimizer_config = Box({'lr': 7e-4})
         self.nsteps = 5  # step to run before update
-        self.seed = 547
+        self.seed = 500
+        self.nenv = 5
+        self.wloss = Box(value=.5)
+        self.max_grad_norm = 0.5
 
     def get_policy(self):
         return PolicyNetwork().to(DEVICE)
