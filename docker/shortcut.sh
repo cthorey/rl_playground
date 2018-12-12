@@ -1,4 +1,8 @@
 #!/bin/bash
+visdom() {
+    docker run -p 8097:8097 -d visdom
+}
+
 rl() {
     docker run  \
            -e ROOT_DIR='/workdir' \
@@ -14,13 +18,16 @@ rl() {
 rlgpu() {
     docker run  \
            --runtime=nvidia \
+           -e DISPLAY=$DISPLAY \
+           --privileged=true \
+           -v /tmp/.X11-unix:/tmp/.X11-unix \
            -e NVIDIA_VISIBLE_DEVICES=${1:-0} \
            -e ROOT_DIR='/workdir' \
            -v $HOME/workdir/rl_playground:/workdir \
            -p "8889:8888" \
            --rm \
            -it \
-           rlgpu /run_jupyter.sh
+           rl /run_jupyter.sh
 }
 
 rlgpu_run() {
@@ -31,7 +38,7 @@ rlgpu_run() {
            -v $HOME/workdir/rl_playground:/workdir \
            --rm \
            -d \
-           rlgpu $2
+           rl $2
 }
 
 krl() {

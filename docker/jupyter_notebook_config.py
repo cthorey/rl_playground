@@ -16,7 +16,7 @@ import os
 from IPython.lib import passwd
 
 c = c  # pylint:disable=undefined-variable
-c.NotebookApp.ip = '0.0.0.0'
+c.NotebookApp.ip = '*'
 c.NotebookApp.allow_root = True
 c.NotebookApp.allow_remote_access = True
 c.NotebookApp.port = int(os.getenv('PORT', 8888))
