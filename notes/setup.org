@@ -1,0 +1,27 @@
+* setup
+
+
+#+BEGIN_SRC
+from box import Box
+import torch,torchvision
+from PIL import Image
+%matplotlib inline
+%load_ext autoreload
+%autoreload 2
+import gym
+import visdom
+import numpy as np
+import pybullet
+import pybullet_envs
+
+pybullet_envs.getList()
+vis = visdom.Visdom('http://HOSTIP')
+pybullet.connect(pybullet.DIRECT)
+env = gym.make("ThrowerBulletEnv-v0")
+env.reset()
+while True:
+    state,reward,done,_ = env.step(env.action_space.sample())
+    vis.image(env.render('rgb_array').transpose(2,0,1),win='hello')
+    if done:
+        env.reset()
+#+END_SRC

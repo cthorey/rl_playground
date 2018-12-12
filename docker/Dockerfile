@@ -21,7 +21,8 @@ RUN pip3 install pandas seaborn tqdm\
                  jupyter ipython \
                  ipykernel torch torchvision \
                  pybullet sklearn tensorflow \
-                 python-box fire tensorboardX
+                 python-box fire tensorboardX \
+                 visdom
 COPY ./run_jupyter.sh /run_jupyter.sh
 COPY ./jupyter_notebook_config.py /root/.jupyter/
 WORKDIR /opt
