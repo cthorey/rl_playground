@@ -15,18 +15,19 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class BaseAgent(object):
-    def __init__(self, agent_name, expname=None):
+    def __init__(self, agent_name, env_name, expname=None):
         # agent_name
         self.agent_name = agent_name
 
-        # our dqn agent that we want to optimize
+        # the network for the policy
         self.policy = self.get_policy()
+
         # state transformers -- Phi in the paper
         self.stransformer = self.get_state_transformer()
 
         # define folder tree
         self.setup_foldertree()
-        self.setup_default_experiment()
+        self.setup_default_experiment(env_name=env_name)
         # reload previous
         if expname is not None:
             self.load_experiment(expname)
@@ -74,7 +75,7 @@ class BaseAgent(object):
                    self.best_reward),
             file=sys.stderr)
 
-    def setup_default_experiment(self):
+    def setup_default_experiment(self, env_name):
         self._setup_default_experiment()
         raise NotImplementedError
 

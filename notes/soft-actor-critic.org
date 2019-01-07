@@ -1,0 +1,32 @@
+* Soft-actor critic (SAC)
+
+** Notes
+
+Desirable properties 
+1. Sample efficiency --> Should be able to learn with little observation.
+2. No sensitive hyperparameters.
+3. Off-policy learning. We can use data collected during a previous task.
+
+Objective:
+\begin{equation}
+J(\pi) =\mathop{\mathbb{E}}_{\pi}\left(\sum_t\left(R(s_t,a_t) -\alpha\log(\pi(a_t|s_t)\right) \right)
+\end{equation}
+
+where $s_t$, $a_t$ are the state and action resp.
+This push the agent to learn a policy than not only maximise the expected return but also 
+maximise its entropy (which can be link to exploration). 
+
+** Side note - principle of maximum entropy
+
+ This principle prescribes the use of the least committed distribution fitting the observation
+when working with a ill-posed problem. In other words, using a Dirac distribution which 
+agree with your single data point to model the source is not a good idea. 
+
+\begin{equation}
+H(\pi) = \mathop{\mathbb{E}}\left(-\log(\pi(a_t,s_t)\right)
+\end{equation}
+
+And then the objective follows naturally.
+
+** Reference
+

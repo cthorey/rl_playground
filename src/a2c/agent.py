@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from src.common.base_agent import BaseAgent
 from src.a2c.utils import PolicyNetwork, StateTransformer
-from torch.functional import F
 ROOT_DIR = os.environ['ROOT_DIR']
 from box import Box
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
