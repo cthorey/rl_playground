@@ -26,28 +26,32 @@ class PersonalTrainer(BasePersonalTrainer):
         tensor = tensor.reshape(self.batch_size, -1)
         return tensor
 
+    @property
+    def w(self):
+        return self.agent.wloss
+
     def update_agent(self):
         """
         Perform one step of gradient ascent.
         Use the Returns Gt directly. MC way.
         """
         states = self.get_tensor('states').float()
-        actions = self.get_tensor('actions').long().squeeze(-1)
-        advantages = self.get_tensor('advantages').float()
+        actions = self.get_tensor('actions').long()
         returns = self.get_tensor('returns').float()
 
-        logits, values = self.agent.policy(states)
-        cross_entropy = F.cross_entropy(logits, actions)
-        wcross_entropy = cross_entropy * advantages
-        # policy loss
-        policy_loss = wcross_entropy.sum()
-        # value loss
-        value_loss = F.mse_loss(values, returns).sum()
-        # loss
-        loss = policy_loss + self.agent.wloss.value * value_loss
+        values, action_log_probs, dist_entropy = self.agent.evaluate_actions(
+            states, actions)
+        advantages = returns - values
+        value_loss = advantages.pow(2).mean()
+        policy_loss = -(advantages.detach() * action_log_probs).mean()
+
+        loss = self.w['value'] * value_loss + policy_loss - self.w['entropy'] * dist_entropy
+
         if self.steps_done % 1000 == 0:
             self.writer.add_scalar('policy_loss', policy_loss, self.steps_done)
             self.writer.add_scalar('value_loss', value_loss, self.steps_done)
+            self.writer.add_scalar('entropy_loss', dist_entropy,
+                                   self.steps_done)
             self.writer.add_scalar('total_loss', loss, self.steps_done)
 
         # additional loss to encourage exploration

@@ -1,8 +1,7 @@
 import json
 import os
-import random
 import sys
-
+from torch import distributions
 import gym
 import numpy as np
 
@@ -18,6 +17,7 @@ class BaseAgent(object):
     def __init__(self, agent_name, env_name, expname=None):
         # agent_name
         self.agent_name = agent_name
+        self.setup_default_experiment(env_name=env_name)
 
         # the network for the policy
         self.policy = self.get_policy()
@@ -27,7 +27,7 @@ class BaseAgent(object):
 
         # define folder tree
         self.setup_foldertree()
-        self.setup_default_experiment(env_name=env_name)
+
         # reload previous
         if expname is not None:
             self.load_experiment(expname)
@@ -76,10 +76,10 @@ class BaseAgent(object):
             file=sys.stderr)
 
     def setup_default_experiment(self, env_name):
-        self._setup_default_experiment()
+        self._setup_default_experiment(env_name)
         raise NotImplementedError
 
-    def _setup_default_experiment(self):
+    def _setup_default_experiment(self, env_name):
         # training
         self.update_freq = 4
         self.optimizer = 'Adam'
@@ -101,6 +101,22 @@ class BaseAgent(object):
         # chekpoints
         self.gif_size = (420, 320)
         self.checkpoint = None
+
+        # env
+        self.env_name = env_name
+
+    @property
+    def action_space(self):
+        return gym.make(self.env_name).action_space
+
+    @property
+    def num_outputs(self):
+        return self.action_space.n
+
+    @property
+    def dist(self):
+        if self.action_space.__class__.__name__ == "Discrete":
+            return distributions.Categorical
 
     def setup_foldertree(self):
         """

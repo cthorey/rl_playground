@@ -67,26 +67,30 @@ class Rollout(object):
             [roll[1] for roll in self.rollout]).astype(int).transpose(1, 0)
 
     @property
+    def action_log_probs(self):
+        return np.stack([roll[2] for roll in self.rollout]).transpose(1, 0)
+
+    @property
     def values(self):
-        return np.stack([roll[2] for roll in self.rollout]).transpose(
+        return np.stack([roll[3] for roll in self.rollout]).transpose(
             1, 0, 2).squeeze(-1)
 
     @property
     def nstates(self):
-        return np.stack([roll[3] for roll in self.rollout]).transpose(1, 0, 2)
+        return np.stack([roll[4] for roll in self.rollout]).transpose(1, 0, 2)
 
     @property
     def nvalues(self):
-        return np.stack([roll[4] for roll in self.rollout]).transpose(
+        return np.stack([roll[5] for roll in self.rollout]).transpose(
             1, 0, 2).squeeze(-1)
 
     @property
     def rewards(self):
-        return np.stack([roll[5] for roll in self.rollout]).transpose(1, 0)
+        return np.stack([roll[6] for roll in self.rollout]).transpose(1, 0)
 
     @property
     def dones(self):
-        return np.stack([roll[6] for roll in self.rollout]).transpose(1, 0)
+        return np.stack([roll[7] for roll in self.rollout]).transpose(1, 0)
 
     @property
     def explained_variance(self):
@@ -110,13 +114,11 @@ class Rollout(object):
             returns.append(ret)
         return np.stack(returns)
 
-    @property
-    def advantages(self):
-        return self.returns - self.values
+    def obs_to_state(self, obs):
+        return torch.Tensor(obs).view(self.nenv, -1)
 
     def reset(self):
-        self.current_states = self.agent.stransformer.transform(
-            self.env.reset())
+        self.current_obs = self.env.reset()
         self.rollout = []
         self.steps_done = 0
         self._cumulative_reward = 0
@@ -126,42 +128,32 @@ class Rollout(object):
     def run(self):
         self.rollout = []
         for i in range(self.agent.nsteps):
-            actions, values = self.agent.select_action(self.current_states)
-            nstates, rewards, done, _ = self.env.step(actions)
-            _, nvalues = self.agent.select_action(nstates)
+            # Choose action based on new state
+            with torch.no_grad():
+                states = self.obs_to_state(self.current_obs)
+                actions, action_log_probs, values = self.agent.take_action(
+                    states)
+
+            # Take the action in the environment
+            obs, rewards, done, _ = self.env.step(actions.tolist())
+
+            # Evaluate V(s')
+            with torch.no_grad():
+                nstates = self.obs_to_state(obs)
+                nvalues = self.agent.get_value(nstates)
+
+            self.rollout.append([
+                states, actions, action_log_probs, values, nstates, nvalues,
+                rewards, done
+            ])
+            # update current obs
+            self.current_obs = obs
+
             # keep track of the reward for one env
             self._cumulative_reward += rewards[0]
             if done[0] == 1:
                 self.cumulative_reward.append(self._cumulative_reward)
                 self._cumulative_reward = 0
-            nstates = self.agent.stransformer.transform(nstates)
-            self.rollout.append([
-                self.current_states, actions, values, nstates, nvalues,
-                rewards, done
-            ])
-            self.current_states = nstates
+
         self.agent.steps_done += self.nenv * self.agent.nsteps
         self.rollout_done += 1
-
-
-class StateTransformer(object):
-    """
-    The input of our Qvalue is the concatenation of the last four frames.
-    """
-
-    def transform(self, state):
-        return state
-
-
-class PolicyNetwork(torch.nn.Module):
-    def __init__(self):
-        super(PolicyNetwork, self).__init__()
-        self.f1 = torch.nn.Linear(4, 16)
-        self.f2 = torch.nn.Linear(16, 32)
-        self.logits = torch.nn.Linear(32, 2)
-        self.values = torch.nn.Linear(32, 1)
-
-    def forward(self, X):
-        X = F.relu(self.f1(X))
-        X = F.relu(self.f2(X))
-        return self.logits(X), self.values(X)
