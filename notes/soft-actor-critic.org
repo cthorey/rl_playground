@@ -1,20 +1,75 @@
+#+STARTUP: latexpreview
 * Soft-actor critic (SAC)
 
-** Notes
+** Summary
 
 Desirable properties 
 1. Sample efficiency --> Should be able to learn with little observation.
 2. No sensitive hyperparameters.
 3. Off-policy learning. We can use data collected during a previous task.
 
-Objective:
+On-policy algorithms such as Trust Region Policy Optimization (TRPO) or Proximal Policy Optimization (PP0) 
+suffers from 1) while off-policy algorithms such as Deep Q learning suffer from 2). Soft-actor 
+critic try to take the best of both world by adding an entropy term to the objective. 
+
+The SAC objective is:
 \begin{equation}
 J(\pi) =\mathop{\mathbb{E}}_{\pi}\left(\sum_t\left(R(s_t,a_t) -\alpha\log(\pi(a_t|s_t)\right) \right)
 \end{equation}
 
 where $s_t$, $a_t$ are the state and action resp.
-This push the agent to learn a policy than not only maximise the expected return but also 
-maximise its entropy (which can be link to exploration). 
+The entropy term 
+1. encourage exploration 
+2. allow the learning process to capture multiples modes of near optimal behavior by assigning them equal probability weights.
+3. Also, the authors argues that this entropy allow the agent to learn considerably faster. 
+
+** Detail of the implementations
+
+SAC makes use of 2 networks:
+1. A soft Q-function $Q$ parameterized by $\theta$
+2. A policy $\pi$ parameterized by $\phi$
+
+*** Soft action-value function $Q$
+
+The soft action-value function is trained to minimize the soft version of the Bellman estimates.
+\begin{equation}
+J_{q}(\theta)=\mathop{\mathbb{E}}_{s_t\sim d}\big[\frac{1}{2}\big( Q_{\theta}(s_t) - \hat{Q}(s_t)\big) \big]
+\end{equation}
+
+where our estimate $\hat{Q}$ is 
+\begin{equation}
+\hat{Q}(s_t,a_t) = r(s_t,a_t)+\gamma \mathop{\mathbb{E}}_{s_{t+1}}\big[V_{\bar{\theta}}(s_{t+1})\big]
+\end{equation
+and the soft value function $V$ is implicitly parameterized by $\theta$ 
+through its definition
+
+\begin{equation}
+V_(s_t)=\mathop{\mathbb{E}}_{a_t \sim \pi}\left(Q(s_t,a_t) -\log(\pi(a_t|s_t)\right)
+\end{equation}
+
+This objective can be optimised via gradient descent following
+
+\begin{equation}
+\nabla_{\theta}J_{Q}(\theta)=\nabla_{\theta} Q_{\theta}(a_t,s_t) \bbig(Q_{\theta}(a_t,s_t) - \big(r(s_t,a_t)+\gamma\big(Q_{\bar{\theta}}(s_{t+1}a_{t+1})-\alpha \log(\pi(a_{t+1}|s_{t+1})\big) \big)\big) \bbig)
+\end{equation
+
+As in deep-Q nework, they use a target network $Q_{\bar{\psi}}$ updated only every N iterations or 
+using an exponential moving average on $\theta$.
+
+*** policy $\pi$
+
+The policy is trained by minimising the following KL divergence
+\begin{equation}
+J_{\pi}(\phi) =\mathop{\mathbb{E}}_{s_t\sim D}\big[D_{KL}\big(\pi_{\phi}(\dot|s_t)||\frac{\exp(\frac{1}{\alpha}Q_{\theta}(s_t,\dot))}{Z_{\theta}(s_t)}\big)\big]
+\end{equation}
+
+where $Z$ is a partition function and does not contributes to the gradient. 
+Ignoring the partition function, multiplying by $\alph$ and plugging in the definition of the KL divergence, we get
+
+\begin{equation}
+J_{\pi}(\phi) =\mathop{\mathbb{E}}_{s_t\sim D}\big[ \mathop{\mathbb{E}}_{a_t\sim \pi_{\phi}}\big [\alpha \log(\pi(a_{t}|s_{t})\big)-Q_{\theta}(s_t,a_t)\big]\big]
+\end{equation}
+
 
 ** Side note - principle of maximum entropy
 
@@ -26,7 +81,12 @@ agree with your single data point to model the source is not a good idea.
 H(\pi) = \mathop{\mathbb{E}}\left(-\log(\pi(a_t,s_t)\right)
 \end{equation}
 
-And then the objective follows naturally.
 
 ** Reference
+
+
+[[https://arxiv.org/pdf/1812.05905.pdf][Soft-Actor critic and applications]]
+[[https://arxiv.org/pdf/1801.01290.pdf][Soft Actor-Critic]]
+[[https://towardsdatascience.com/soft-actor-critic-demystified-b8427df61665][Soft Actor-Critic Demystified]]
+[[https://nbviewer.jupyter.org/github/gokererdogan/Notebooks/blob/master/Reparameterization%20Trick.ipynb][ReparameterizationTrick]]
 

@@ -26,10 +26,10 @@ class Agent(BaseAgent):
     def setup_default_experiment(self, env_name):
         self._setup_default_experiment(env_name=env_name)
         self.optimizer = 'RMSprop'
-        self.optimizer_config = Box({'lr': 7e-4})
-        self.nsteps = 5  # step to run before update
+        self.optimizer_config = Box({'lr': 1e-4})
+        self.nsteps = 1  # step to run before update
         self.seed = 400
-        self.nenv = 5
+        self.nenv = 1
         self.wloss = Box(value=.5, entropy=.01)
         self.max_grad_norm = 0.5
 
