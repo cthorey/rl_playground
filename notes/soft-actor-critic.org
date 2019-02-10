@@ -4,13 +4,16 @@
 ** Summary
 
 Desirable properties 
-1. Sample efficiency --> Should be able to learn with little observation.
+1. Sample efficiency --> Should be able to learn with little observations.
 2. No sensitive hyperparameters.
 3. Off-policy learning. We can use data collected during a previous task.
 
-On-policy algorithms such as Trust Region Policy Optimization (TRPO) or Proximal Policy Optimization (PP0) 
-suffers from 1) while off-policy algorithms such as Deep Q learning suffer from 2). Soft-actor 
-critic try to take the best of both world by adding an entropy term to the objective. 
+On-policy algorithms such as Trust Region Policy Optimization (TRPO) 
+or Proximal Policy Optimization (PP0) 
+suffers from 1) while off-policy algorithms such as Deep Q learning 
+suffer from 2). Soft-actor 
+critic try to take the best of both world by adding an entropy term 
+to the objective. 
 
 The SAC objective is:
 \begin{equation}
@@ -31,15 +34,19 @@ SAC makes use of 2 networks:
 
 *** Soft action-value function $Q$
 
-The soft action-value function is trained to minimize the soft version of the Bellman estimates.
+The soft action-value function is trained to minimize the soft 
+version of the Bellman estimates
+
 \begin{equation}
-J_{q}(\theta)=\mathop{\mathbb{E}}_{s_t\sim d}\big[\frac{1}{2}\big( Q_{\theta}(s_t) - \hat{Q}(s_t)\big) \big]
+J_{q}(\theta)=\mathop{\mathbb{E}}_{s_t,a_t\sim D}\big[\frac{1}{2}\big( Q_{\theta}(s_t,a_t) - \hat{Q}(s_t,a_t)\big) \big]
 \end{equation}
 
 where our estimate $\hat{Q}$ is 
+
 \begin{equation}
-\hat{Q}(s_t,a_t) = r(s_t,a_t)+\gamma \mathop{\mathbb{E}}_{s_{t+1}}\big[V_{\bar{\theta}}(s_{t+1})\big]
-\end{equation
+\hat{Q}(s_t,a_t) = \mathop{\mathbb{E}}_{s_{t+1}} \big[ r(s_t,a_t,s_{t+1})+\gamma V_{\bar{\theta}}(s_{t+1})\big]
+\end{equation}
+
 and the soft value function $V$ is implicitly parameterized by $\theta$ 
 through its definition
 
@@ -51,7 +58,7 @@ This objective can be optimised via gradient descent following
 
 \begin{equation}
 \nabla_{\theta}J_{Q}(\theta)=\nabla_{\theta} Q_{\theta}(a_t,s_t) \bbig(Q_{\theta}(a_t,s_t) - \big(r(s_t,a_t)+\gamma\big(Q_{\bar{\theta}}(s_{t+1}a_{t+1})-\alpha \log(\pi(a_{t+1}|s_{t+1})\big) \big)\big) \bbig)
-\end{equation
+\end{equation}
 
 As in deep-Q nework, they use a target network $Q_{\bar{\psi}}$ updated only every N iterations or 
 using an exponential moving average on $\theta$.
@@ -89,4 +96,4 @@ H(\pi) = \mathop{\mathbb{E}}\left(-\log(\pi(a_t,s_t)\right)
 [[https://arxiv.org/pdf/1801.01290.pdf][Soft Actor-Critic]]
 [[https://towardsdatascience.com/soft-actor-critic-demystified-b8427df61665][Soft Actor-Critic Demystified]]
 [[https://nbviewer.jupyter.org/github/gokererdogan/Notebooks/blob/master/Reparameterization%20Trick.ipynb][ReparameterizationTrick]]
-
+[[https://spinningup.openai.com/en/latest/algorithms/sac.html][open-ai-SAC]]
