@@ -1,51 +1,50 @@
 import json
 import os
 import sys
-from torch import distributions
-import gym
+from src.common import approximator, utils
 import numpy as np
 
 import torch
 from box import Box
 from PIL import Image
+
 import imageio
+
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class BaseAgent(object):
-    def __init__(self, agent_name, env_name, expname=None):
+class Agent(object):
+    def __init__(self, agent_name, env_name, expname=None, seed=569):
         # agent_name
         self.agent_name = agent_name
-        self.setup_default_experiment(env_name=env_name)
+        self.env_name = env_name
+        self.seed = seed
+        self.setup_foldertree()
+        self.setup_config()
 
         # the network for the policy
-        self.policy = self.get_policy()
-
-        # state transformers -- Phi in the paper
-        self.stransformer = self.get_state_transformer()
-
-        # define folder tree
-        self.setup_foldertree()
+        self.setup_approxmator()
 
         # reload previous
         if expname is not None:
             self.load_experiment(expname)
 
-    def get_policy(self):
-        raise NotImplementedError
-
-    def get_state_transformer(self):
-        raise NotImplementedError
+    def setup_approxmator(self):
+        env = utils.make_env(self.env_name)
+        obs_shape = env.observation_space.shape
+        action_space = env.action_space
+        self.policy = approximator.Policy(
+            obs_shape=obs_shape, action_space=action_space)
 
     def update_config(self, **kwargs):
         for key, value in kwargs.items():
-            print('Updating {}: {}'.format(key, value), file=sys.stderr)
+            print('Updating {}: {}'.format(key, value))
             if key not in self.__dict__:
                 raise ValueError('Parameter {} does not exist'.format(key))
             setattr(self, key, value)
 
-    def load_exp_config(self, expname=None):
+    def load_previous_config(self, expname=None):
         """
         Loads configuration file for experiment
         """
@@ -57,7 +56,7 @@ class BaseAgent(object):
         return Box(experiment)
 
     def load_experiment(self, expname, prefix='best'):
-        experiment = self.load_exp_config(expname)
+        experiment = self.load_previous_config(expname)
         self.__dict__.update(experiment)
         checkpoint_path = os.path.join(self.agent_folder,
                                        '{}_{}.pth.tar'.format(expname, prefix))
@@ -72,24 +71,11 @@ class BaseAgent(object):
         print(
             "=> loaded {} checkpoint (steps_done {}/ episode {} / reward {})".
             format(prefix, self.steps_done, self.episodes_done,
-                   self.best_reward),
-            file=sys.stderr)
+                   self.best_reward))
 
-    def setup_default_experiment(self, env_name):
-        self._setup_default_experiment(env_name)
-        raise NotImplementedError
-
-    def _setup_default_experiment(self, env_name):
-        # training
-        self.update_freq = 4
-        self.optimizer = 'Adam'
-        self.optimizer_config = Box({'lr': 1e-5})
-
-        # epsilon decay
-        self.eps_start = 1.0
-        self.eps_end = 0.1
-        self.eps_decay = 250000
-        self.target_update = 10000
+    def setup_config(self):
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed_all(self.seed)
 
         # Global step
         self.gamma = 0.999
@@ -102,22 +88,6 @@ class BaseAgent(object):
         self.gif_size = (420, 320)
         self.checkpoint = None
 
-        # env
-        self.env_name = env_name
-
-    @property
-    def action_space(self):
-        return gym.make(self.env_name).action_space
-
-    @property
-    def num_outputs(self):
-        return self.action_space.n
-
-    @property
-    def dist(self):
-        if self.action_space.__class__.__name__ == "Discrete":
-            return distributions.Categorical
-
     def setup_foldertree(self):
         """
         Create the folder tree of that specific model training
@@ -125,32 +95,6 @@ class BaseAgent(object):
         self.agent_folder = os.path.join(ROOT_DIR, 'models', self.agent_name)
         if not os.path.isdir(self.agent_folder):
             os.makedirs(self.agent_folder)
-
-    def select_action(self, state, epsilon):
-        raise NotImplementedError
-
-    def play_one_episode(self, render=False, create_gif=False):
-        env = gym.envs.make(self.env_name)
-        frames = []
-        state = env.reset()
-        state = self.stransformer.transform(state)
-        stats = Box(steps=0, reward=0)
-        while 1:
-            if render:
-                env.render()
-            if create_gif:
-                frames.append(self.get_screen(env))
-            action = self.select_action(state.to(DEVICE), epsilon=0.0)
-            nstate, reward, done, info = env.step(action)
-            nstate = self.stransformer.transform(nstate)
-            stats.steps += 1
-            stats.reward += reward
-            if done:
-                break
-            state = nstate
-        if create_gif:
-            self.generate_giff(frames)
-        return stats
 
     def get_screen(self, env):
         screen = env.render(mode='rgb_array')

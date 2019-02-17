@@ -97,3 +97,7 @@ H(\pi) = \mathop{\mathbb{E}}\left(-\log(\pi(a_t,s_t)\right)
 [[https://towardsdatascience.com/soft-actor-critic-demystified-b8427df61665][Soft Actor-Critic Demystified]]
 [[https://nbviewer.jupyter.org/github/gokererdogan/Notebooks/blob/master/Reparameterization%20Trick.ipynb][ReparameterizationTrick]]
 [[https://spinningup.openai.com/en/latest/algorithms/sac.html][open-ai-SAC]]
+
+** Competition
+
+https://blogs.unity3d.com/2019/01/28/obstacle-tower-challenge-test-the-limits-of-intelligence-systems/
