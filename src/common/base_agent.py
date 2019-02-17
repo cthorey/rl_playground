@@ -15,26 +15,22 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class BaseAgent(object):
-    def __init__(self, agent_name, expname=None):
+    def __init__(self, agent_name, environment_name, expname=None):
         # agent_name
         self.agent_name = agent_name
+        self.env_name = environment_name
+        # common seutp
+        self.common_setup(expname)
 
-        # our dqn agent that we want to optimize
-        self.policy = self.get_policy()
-        # state transformers -- Phi in the paper
-        self.stransformer = self.get_state_transformer()
-
-        # define folder tree
+    def common_setup(self, expname):
+        self.setup_approximator()
         self.setup_foldertree()
-        self.setup_default_experiment()
+        self.setup_config()
         # reload previous
         if expname is not None:
             self.load_experiment(expname)
 
-    def get_policy(self):
-        raise NotImplementedError
-
-    def get_state_transformer(self):
+    def setup_approximator(self):
         raise NotImplementedError
 
     def update_config(self, **kwargs):
@@ -74,32 +70,8 @@ class BaseAgent(object):
                    self.best_reward),
             file=sys.stderr)
 
-    def setup_default_experiment(self):
-        self._setup_default_experiment()
+    def setup_config(self):
         raise NotImplementedError
-
-    def _setup_default_experiment(self):
-        # training
-        self.update_freq = 4
-        self.optimizer = 'Adam'
-        self.optimizer_config = Box({'lr': 1e-5})
-
-        # epsilon decay
-        self.eps_start = 1.0
-        self.eps_end = 0.1
-        self.eps_decay = 250000
-        self.target_update = 10000
-
-        # Global step
-        self.gamma = 0.999
-        self.steps_done = 0
-        self.num_episodes = 0
-        self.episodes_done = 0
-        self.best_reward = 0
-
-        # chekpoints
-        self.gif_size = (420, 320)
-        self.checkpoint = None
 
     def setup_foldertree(self):
         """
@@ -116,7 +88,6 @@ class BaseAgent(object):
         env = gym.envs.make(self.env_name)
         frames = []
         state = env.reset()
-        state = self.stransformer.transform(state)
         stats = Box(steps=0, reward=0)
         while 1:
             if render:

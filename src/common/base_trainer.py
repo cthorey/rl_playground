@@ -75,12 +75,7 @@ class BasePersonalTrainer(object):
         torch.save(state, checkpoint_path)
 
     def train_one_episode(self, env):
-        self.agent.stransformer.reset()
-        state = env.reset()
-        state = self.agent.stransformer.transform(state)
-        episode = Box(steps=0, reward=0)
         raise NotImplementedError
-        return episode
 
     def train(self, num_episodes=50):
         env = gym.envs.make(self.agent.env_name)

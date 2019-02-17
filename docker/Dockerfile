@@ -30,7 +30,13 @@ RUN git clone https://github.com/openai/baselines.git && \
     cd baselines && \
     pip install -e .
 
+RUN git clone https://github.com/ikostrikov/pytorch-a2c-ppo-acktr && \
+    cd pytorch-a2c-ppo-acktr && \
+    pip install -e .
+
 # final
+RUN pip install imageio
+
 ENV PYTHONPATH=$PYTHONPATH:/workdir
 WORKDIR /workdir
 CMD ["bash"]

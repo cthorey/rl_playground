@@ -22,16 +22,6 @@ def compute_discount_reward(rewards, gamma):
     return np.sum(returns, axis=0).T
 
 
-class StateTransformer(object):
-    """
-    The input of our Qvalue is the concatenation of the last four frames.
-    """
-
-    def transform(self, state):
-        state = torch.from_numpy(state).float().to('cpu')
-        return state
-
-
 class PolicyNetwork(torch.nn.Module):
     def __init__(self):
         super(PolicyNetwork, self).__init__()

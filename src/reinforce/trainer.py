@@ -34,7 +34,6 @@ class PersonalTrainer(BasePersonalTrainer):
         Train on episode
         """
         state = env.reset()
-        state = self.agent.stransformer.transform(state)
         episode = Box(steps=0, reward=0)
         data = []
         # play one episode
