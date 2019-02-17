@@ -137,10 +137,14 @@ class Rollout(object):
                 nstates = self.obs_to_state(nobs)
                 nvalues = self.agent.policy.get_value(nstates)
 
+            # add to rollout
             self.insert(states, actions, action_log_probs, values, nstates,
                         nvalues, entropy, rewards, dones)
 
             self.track_cumulative_reward(rewards, dones)
+
+            # update obs
+            self.obs = nobs
 
         self.agent.steps_done += self.nenv * self.nsteps
         self.rollout_done += 1

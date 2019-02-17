@@ -61,7 +61,7 @@ class PersonalTrainer(PersonalTrainer):
         if self.steps_done % 1000 == 0:
             self.writer.add_scalar('policy_loss', policy_loss, self.steps_done)
             self.writer.add_scalar('value_loss', value_loss, self.steps_done)
-            self.writer.add_scalar('entropy_loss', dist_entropy,
+            self.writer.add_scalar('entropy_loss', -dist_entropy,
                                    self.steps_done)
             self.writer.add_scalar('total_loss', loss, self.steps_done)
 
