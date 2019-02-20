@@ -1,26 +1,34 @@
 import os
+
 import numpy as np
 import torch
+from box import Box
 from src.common.base_trainer import PersonalTrainer
 from src.common.rollout import Rollout
+from tensorboardX import SummaryWriter
+from tqdm import tqdm
+
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-from tqdm import tqdm
-from box import Box
-from tensorboardX import SummaryWriter
 
 
 class PersonalTrainer(PersonalTrainer):
     def __init__(self,
                  agent,
-                 optimize='RMSProp',
+                 optimizer='RMSprop',
                  lr=1e-5,
                  nenv=1,
                  nsteps=10,
                  max_grad_norm=0.5,
                  value_loss_coeff=0.5,
                  entropy_loss_coeff=0.01):
-        super(PersonalTrainer, self).__init__(agent=agent)
+        super(PersonalTrainer, self).__init__(
+            agent=agent,
+            optimizer=optimizer,
+            lr=lr,
+            nenv=nenv,
+            nsteps=nsteps,
+        )
         self.rollout = Rollout(
             agent=agent, nenv=nenv, nsteps=nsteps, seed=agent.seed)
         self.max_grad_norm = max_grad_norm

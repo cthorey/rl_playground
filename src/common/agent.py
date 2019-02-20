@@ -1,14 +1,13 @@
 import json
 import os
 import sys
-from src.common import approximator, utils
-import numpy as np
 
+import imageio
+import numpy as np
 import torch
 from box import Box
 from PIL import Image
-
-import imageio
+from src.common import approximator, utils
 
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,7 +34,7 @@ class Agent(object):
         obs_shape = env.observation_space.shape
         action_space = env.action_space
         self.policy = approximator.Policy(
-            obs_shape=obs_shape, action_space=action_space)
+            obs_shape=obs_shape, action_space=action_space).to(DEVICE)
 
     def update_config(self, **kwargs):
         for key, value in kwargs.items():

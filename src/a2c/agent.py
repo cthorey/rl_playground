@@ -1,10 +1,11 @@
 import os
 
-import torch.nn.functional as F
 import torch
-from src.common.base_agent import BaseAgent
-ROOT_DIR = os.environ['ROOT_DIR']
+import torch.nn.functional as F
 from box import Box
+from src.common.base_agent import BaseAgent
+
+ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -34,6 +35,7 @@ class Agent(BaseAgent):
         self.max_grad_norm = 0.5
 
     def get_policy(self):
+        print(DEVICE)
         return ActorCritic(
             input_shape=4, output_shape=self.num_outputs).to(DEVICE)
 

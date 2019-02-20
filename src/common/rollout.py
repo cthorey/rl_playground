@@ -1,33 +1,9 @@
-import torch
 import numpy as np
+import torch
+import visdom
 from src.common import utils
 
-
-def compute_discount_reward_with_done(rewards, done, gamma):
-    rewards = np.array(rewards)
-    done = np.array(done)
-    end = np.argwhere(np.array(done)).ravel()
-    returns = np.zeros(np.array(rewards).shape[0])
-    idx = 0
-    for nidx in end:
-        returns[idx:nidx + 1] = compute_discount_reward(
-            rewards[idx:nidx + 1], gamma)
-        idx = nidx + 1
-    return returns
-
-
-def compute_discount_reward(rewards, gamma):
-    """
-    Args:
-        rewards (NX1)
-    """
-    rewards = np.expand_dims(np.array(rewards), 1)
-    N = len(rewards)
-    triangle = np.tri(N, N)
-    powers = np.cumsum(triangle, axis=0) - 1
-    gammas = gamma**powers
-    returns = gammas * triangle * rewards
-    return np.sum(returns, axis=0).T
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Rollout(object):
@@ -36,7 +12,7 @@ class Rollout(object):
         self.gamma = gamma
         self.nsteps = nsteps
         self.nenv = nenv
-        self.env = utils.make_env(self.agent.env_name, nenv, seed)
+        self.env = utils.make_env(self.agent.env_name, nenv, seed, debug=True)
         self.reset()
 
     @property
@@ -77,7 +53,8 @@ class Rollout(object):
 
     @property
     def returns(self):
-        returns = torch.zeros(self.nsteps + 1, self.nenv, 1)
+        s = self.rewards.shape
+        returns = torch.zeros(s[0] + 1, s[1], s[2])
         returns[-1] = self.nvalues[-1]
         for step in reversed(range(self.rewards.shape[0])):
             returns[step] = self.rewards[step]
@@ -86,7 +63,7 @@ class Rollout(object):
         return returns[:-1]
 
     def obs_to_state(self, obs):
-        return torch.Tensor(obs).view(self.nenv, -1)
+        return torch.Tensor(obs).view(self.nenv, -1).to('cpu')
 
     def reset(self):
         self.obs = self.env.reset()
@@ -121,6 +98,7 @@ class Rollout(object):
 
     def run(self):
         self.rollout = []
+        self.agent.policy.to('cpu')
         for i in range(self.nsteps):
             # Choose action based on new state
             with torch.no_grad():
@@ -131,7 +109,6 @@ class Rollout(object):
             # Take the action in the env
             nobs, rewards, dones, _ = self.env.step(
                 np.array(actions.flatten()))
-
             # Evaluate V(s')
             with torch.no_grad():
                 nstates = self.obs_to_state(nobs)
@@ -144,7 +121,8 @@ class Rollout(object):
             self.track_cumulative_reward(rewards, dones)
 
             # update obs
-            self.obs = nobs
+            self.obs = nobs if not dones[0] else self.env.reset()
 
         self.agent.steps_done += self.nenv * self.nsteps
         self.rollout_done += 1
+        self.agent.policy.to(DEVICE)
