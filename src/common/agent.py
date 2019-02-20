@@ -1,46 +1,50 @@
 import json
 import os
-import random
 import sys
-
-import gym
+from src.common import approximator, utils
 import numpy as np
 
 import torch
 from box import Box
 from PIL import Image
+
 import imageio
+
 ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class BaseAgent(object):
-    def __init__(self, agent_name, environment_name, expname=None):
+class Agent(object):
+    def __init__(self, agent_name, env_name, expname=None, seed=569):
         # agent_name
         self.agent_name = agent_name
-        self.env_name = environment_name
-        # common seutp
-        self.common_setup(expname)
-
-    def common_setup(self, expname):
-        self.setup_approximator()
+        self.env_name = env_name
+        self.seed = seed
         self.setup_foldertree()
         self.setup_config()
+
+        # the network for the policy
+        self.setup_approxmator()
+
         # reload previous
         if expname is not None:
             self.load_experiment(expname)
 
-    def setup_approximator(self):
-        raise NotImplementedError
+    def setup_approxmator(self):
+        env = utils.make_env(self.env_name)
+        obs_shape = env.observation_space.shape
+        action_space = env.action_space
+        self.policy = approximator.Policy(
+            obs_shape=obs_shape, action_space=action_space)
 
     def update_config(self, **kwargs):
         for key, value in kwargs.items():
-            print('Updating {}: {}'.format(key, value), file=sys.stderr)
+            print('Updating {}: {}'.format(key, value))
             if key not in self.__dict__:
                 raise ValueError('Parameter {} does not exist'.format(key))
             setattr(self, key, value)
 
-    def load_exp_config(self, expname=None):
+    def load_previous_config(self, expname=None):
         """
         Loads configuration file for experiment
         """
@@ -52,7 +56,7 @@ class BaseAgent(object):
         return Box(experiment)
 
     def load_experiment(self, expname, prefix='best'):
-        experiment = self.load_exp_config(expname)
+        experiment = self.load_previous_config(expname)
         self.__dict__.update(experiment)
         checkpoint_path = os.path.join(self.agent_folder,
                                        '{}_{}.pth.tar'.format(expname, prefix))
@@ -67,11 +71,22 @@ class BaseAgent(object):
         print(
             "=> loaded {} checkpoint (steps_done {}/ episode {} / reward {})".
             format(prefix, self.steps_done, self.episodes_done,
-                   self.best_reward),
-            file=sys.stderr)
+                   self.best_reward))
 
     def setup_config(self):
-        raise NotImplementedError
+        torch.manual_seed(self.seed)
+        torch.cuda.manual_seed_all(self.seed)
+
+        # Global step
+        self.gamma = 0.999
+        self.steps_done = 0
+        self.num_episodes = 0
+        self.episodes_done = 0
+        self.best_reward = 0
+
+        # chekpoints
+        self.gif_size = (420, 320)
+        self.checkpoint = None
 
     def setup_foldertree(self):
         """
@@ -80,31 +95,6 @@ class BaseAgent(object):
         self.agent_folder = os.path.join(ROOT_DIR, 'models', self.agent_name)
         if not os.path.isdir(self.agent_folder):
             os.makedirs(self.agent_folder)
-
-    def select_action(self, state, epsilon):
-        raise NotImplementedError
-
-    def play_one_episode(self, render=False, create_gif=False):
-        env = gym.envs.make(self.env_name)
-        frames = []
-        state = env.reset()
-        stats = Box(steps=0, reward=0)
-        while 1:
-            if render:
-                env.render()
-            if create_gif:
-                frames.append(self.get_screen(env))
-            action = self.select_action(state.to(DEVICE), epsilon=0.0)
-            nstate, reward, done, info = env.step(action)
-            nstate = self.stransformer.transform(nstate)
-            stats.steps += 1
-            stats.reward += reward
-            if done:
-                break
-            state = nstate
-        if create_gif:
-            self.generate_giff(frames)
-        return stats
 
     def get_screen(self, env):
         screen = env.render(mode='rgb_array')

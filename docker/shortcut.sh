@@ -3,6 +3,19 @@ visdom() {
     docker run -p 8097:8097 -d visdom
 }
 
+rl() {
+    docker run  \
+           -e ROOT_DIR='/workdir' \
+           -v $HOME/workdir/rl_playground:/workdir \
+           -v $HOME/workdir/pytorch-a2c-ppo-acktr/a2c_ppo_acktr:/workdir/a2c_ppo_acktr \
+           -p "8888:8888" \
+           -p "5901:5901" \
+           -p "6901:6901" \
+           --rm \
+           -d \
+           rl /run_jupyter.sh
+}
+
 rlgpu() {
     docker run  \
            --runtime=nvidia \
@@ -29,13 +42,25 @@ rlgpu_run() {
            rl $2
 }
 
+krl() {
+    docker run  \
+           -e ROOT_DIR='/workdir' \
+           -v $HOME/workdir/rl_playground:/workdir \
+           -p "8888:8888" \
+           -p "5901:5901" \
+           -p "6901:6901" \
+           --rm \
+           -it \
+           rl bash
+}
+
 tensorboard() {
     docker run  \
            -e ROOT_DIR='/workdir' \
            -v $PWD:/workdir \
            -p "6006:6006" \
            --rm \
-           -it \
+           -d \
            rl tensorboard --logdir=$1
 }
 

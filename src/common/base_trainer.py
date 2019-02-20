@@ -14,23 +14,23 @@ ROOT_DIR = os.environ['ROOT_DIR']
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class BasePersonalTrainer(object):
-    def __init__(self, agent):
+class PersonalTrainer(object):
+    def __init__(self, agent, optimizer='Adam', lr=1e-5, nenv=1, nsteps=10):
         self.agent = agent
 
+        # env spec
+        self.nenv = nenv
+        self.nsteps = nsteps
+
         #optimizer
-        self.optimizer = getattr(torch.optim, self.agent.optimizer)(
-            self.agent.policy.parameters(), **self.agent.optimizer_config)
+        self.optimizer = getattr(torch.optim, optimizer)(
+            self.agent.policy.parameters(), lr=lr)
 
         # scheduler
         self.scheduler = None
 
         if self.agent.checkpoint is not None:
             self.optimizer.load_state_dict(self.agent.checkpoint.optimizer)
-
-    def epsilon_decay(self, num_steps):
-        return  self.agent.eps_end + (self.agent.eps_start - self.agent.eps_end) * \
-            math.exp(-1. * num_steps / self.agent.eps_decay)
 
     def update_config(self, **kwargs):
         self.agent.update_config(**kwargs)

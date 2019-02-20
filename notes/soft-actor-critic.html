@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimal-ui">
+
+
+<style>
+body {
+  min-width: 200px;
+  max-width: 790px;
+  margin: 0 auto;
+  padding: 30px;
+}
+</style>
+</head>
+<body>
+<div class="markdown-body">
+
+<p>#+STARTUP: latexpreview</p>
+<ul>
+<li>Soft-actor critic (SAC)</li>
+</ul>
+<p>** Summary</p>
+<p>Desirable properties</p>
+<ol>
+<li>Sample efficiency --&gt; Should be able to learn with little observations.</li>
+<li>No sensitive hyperparameters.</li>
+<li>Off-policy learning. We can use data collected during a previous task.</li>
+</ol>
+<p>On-policy algorithms such as Trust Region Policy Optimization (TRPO)
+or Proximal Policy Optimization (PP0)
+suffers from 1) while off-policy algorithms such as Deep Q learning
+suffer from 2). Soft-actor
+critic try to take the best of both world by adding an entropy term
+to the objective.</p>
+<p>The SAC objective is:
+\begin{equation}
+J(\pi) =\mathop{\mathbb{E}}_{\pi}\left(\sum_t\left(R(s_t,a_t) -\alpha\log(\pi(a_t|s_t)\right) \right)
+\end{equation}</p>
+<p>where $s_t$, $a_t$ are the state and action resp.
+The entropy term</p>
+<ol>
+<li>encourage exploration</li>
+<li>allow the learning process to capture multiples modes of near optimal behavior by assigning them equal probability weights.</li>
+<li>Also, the authors argues that this entropy allow the agent to learn considerably faster.</li>
+</ol>
+<p>** Detail of the implementations</p>
+<p>SAC makes use of 2 networks:</p>
+<ol>
+<li>A soft Q-function $Q$ parameterized by $\theta$</li>
+<li>A policy $\pi$ parameterized by $\phi$</li>
+</ol>
+<p>*** Soft action-value function $Q$</p>
+<p>The soft action-value function is trained to minimize the soft
+version of the Bellman estimates</p>
+<p>\begin{equation}
+J_{q}(\theta)=\mathop{\mathbb{E}}<em>{s_t,a_t\sim D}\big[\frac{1}{2}\big( Q</em>{\theta}(s_t,a_t) - \hat{Q}(s_t,a_t)\big) \big]
+\end{equation}</p>
+<p>where our estimate $\hat{Q}$ is</p>
+<p>\begin{equation}
+\hat{Q}(s_t,a_t) = \mathop{\mathbb{E}}<em>{s</em>{t+1}} \big[ r(s_t,a_t,s_{t+1})+\gamma V_{\bar{\theta}}(s_{t+1})\big]
+\end{equation}</p>
+<p>and the soft value function $V$ is implicitly parameterized by $\theta$
+through its definition</p>
+<p>\begin{equation}
+V_(s_t)=\mathop{\mathbb{E}}_{a_t \sim \pi}\left(Q(s_t,a_t) -\log(\pi(a_t|s_t)\right)
+\end{equation}</p>
+<p>This objective can be optimised via gradient descent following</p>
+<p>\begin{equation}
+\nabla_{\theta}J_{Q}(\theta)=\nabla_{\theta} Q_{\theta}(a_t,s_t) \bbig(Q_{\theta}(a_t,s_t) - \big(r(s_t,a_t)+\gamma\big(Q_{\bar{\theta}}(s_{t+1}a_{t+1})-\alpha \log(\pi(a_{t+1}|s_{t+1})\big) \big)\big) \bbig)
+\end{equation}</p>
+<p>As in deep-Q nework, they use a target network $Q_{\bar{\psi}}$ updated only every N iterations or
+using an exponential moving average on $\theta$.</p>
+<p>*** policy $\pi$</p>
+<p>The policy is trained by minimising the following KL divergence
+\begin{equation}
+J_{\pi}(\phi) =\mathop{\mathbb{E}}<em>{s_t\sim D}\big[D</em>{KL}\big(\pi_{\phi}(\dot|s_t)||\frac{\exp(\frac{1}{\alpha}Q_{\theta}(s_t,\dot))}{Z_{\theta}(s_t)}\big)\big]
+\end{equation}</p>
+<p>where $Z$ is a partition function and does not contributes to the gradient.
+Ignoring the partition function, multiplying by $\alph$ and plugging in the definition of the KL divergence, we get</p>
+<p>\begin{equation}
+J_{\pi}(\phi) =\mathop{\mathbb{E}}<em>{s_t\sim D}\big[ \mathop{\mathbb{E}}</em>{a_t\sim \pi_{\phi}}\big [\alpha \log(\pi(a_{t}|s_{t})\big)-Q_{\theta}(s_t,a_t)\big]\big]
+\end{equation}</p>
+<p>** Side note - principle of maximum entropy</p>
+<p>This principle prescribes the use of the least committed distribution fitting the observation
+when working with a ill-posed problem. In other words, using a Dirac distribution which
+agree with your single data point to model the source is not a good idea.</p>
+<p>\begin{equation}
+H(\pi) = \mathop{\mathbb{E}}\left(-\log(\pi(a_t,s_t)\right)
+\end{equation}</p>
+<p>** Reference</p>
+<p>[[<a href="https://arxiv.org/pdf/1812.05905.pdf%5D%5BSoft-Actor" rel="nofollow">https://arxiv.org/pdf/1812.05905.pdf][Soft-Actor</a> critic and applications]]
+[[<a href="https://arxiv.org/pdf/1801.01290.pdf%5D%5BSoft" rel="nofollow">https://arxiv.org/pdf/1801.01290.pdf][Soft</a> Actor-Critic]]
+[[<a href="https://towardsdatascience.com/soft-actor-critic-demystified-b8427df61665%5D%5BSoft" rel="nofollow">https://towardsdatascience.com/soft-actor-critic-demystified-b8427df61665][Soft</a> Actor-Critic Demystified]]
+[[<a href="https://nbviewer.jupyter.org/github/gokererdogan/Notebooks/blob/master/Reparameterization%20Trick.ipynb%5D%5BReparameterizationTrick" rel="nofollow">https://nbviewer.jupyter.org/github/gokererdogan/Notebooks/blob/master/Reparameterization%20Trick.ipynb][ReparameterizationTrick</a>]]
+[[<a href="https://spinningup.openai.com/en/latest/algorithms/sac.html%5D%5Bopen-ai-SAC" rel="nofollow">https://spinningup.openai.com/en/latest/algorithms/sac.html][open-ai-SAC</a>]]</p>
+
+</div>
+</body>
+</html>
